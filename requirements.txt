@@ -1,0 +1,7 @@
+# Requirements for Electrolyzer
+
+numpy
+scipy
+pandas
+matplotlib
+pytest
