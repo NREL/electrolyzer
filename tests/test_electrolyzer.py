@@ -4,8 +4,6 @@
 
 import pytest
 
-from click.testing import CliRunner
-
 from electrolyzer import electrolyzer
 
 
