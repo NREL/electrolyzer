@@ -36,7 +36,7 @@ with open('HISTORY.rst') as history_file:
 test_requirements = ['pytest>=3', ]
 
 ROOT = Path(__file__).parent
-with open(ROOT / "floris" / "version.py") as version_file:
+with open(ROOT / "electrolyzer"/ "version") as version_file:
     VERSION = version_file.read().strip()
 
 setup(
