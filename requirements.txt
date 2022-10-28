@@ -4,5 +4,6 @@ numpy
 scipy
 pandas
 matplotlib
+rainflow
 pytest
 pre-commit
