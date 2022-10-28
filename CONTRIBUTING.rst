@@ -64,11 +64,14 @@ Ready to contribute? Here's how to set up `electrolyzer` for local development.
 
     $ git clone git@github.com:your_name_here/electrolyzer.git
 
-3. Install your local copy into a virtualenv. Assuming you have virtualenvwrapper installed, this is how you set up your fork for local development::
+3. Install your local copy into a virtual environment using your tool of choice (this examples uses ``virtualenv``). ::
 
-    $ mkvirtualenv electrolyzer
-    $ cd electrolyzer/
-    $ python setup.py develop
+    $ cd electrolyzer
+    $ virtualenv env
+    $ source env/bin/activate
+    $ pip install -r requirements.txt
+    $ pip install -e .[d]
+    $ pre-commit install
 
 4. Create a branch for local development::
 
@@ -76,15 +79,12 @@ Ready to contribute? Here's how to set up `electrolyzer` for local development.
 
    Now you can make your changes locally.
 
-5. When you're done making changes, check that your changes pass flake8 and the
+5. When you're done making changes, check that your changes pass the
    tests::
 
-    $ flake8 electrolyzer tests
     $ python setup.py test or pytest
 
-   To get flake8, just pip install it into your virtualenv.
-
-6. Commit your changes and push your branch to GitHub::
+6. Commit your changes (the pre-commit hook will perform an auto-format and lint check) and push your branch to GitHub::
 
     $ git add .
     $ git commit -m "Your detailed description of your changes."
