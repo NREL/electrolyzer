@@ -7,7 +7,6 @@ This module defines the Hydrogen Electrolyzer Model
 # * refine calcFaradaicEfficiency(); compare with other model
 # * add a separate script to show results
 
-import json
 import math
 
 import numpy as np
@@ -15,6 +14,7 @@ import scipy
 import pandas as pd
 import rainflow
 from scipy.signal import tf2ss, cont2discrete
+from scipy.constants import R, physical_constants, convert_temperature
 
 
 def electrolyzer_model(X, a, b, c, d, e, f):
@@ -23,21 +23,32 @@ def electrolyzer_model(X, a, b, c, d, e, f):
     return I
 
 
+# Constants #
+#############
+F, _, _ = physical_constants["Faraday constant"]  # Faraday's constant [C/mol]
+P_ATMO, _, _ = physical_constants["standard atmosphere"]
+
+
 class Electrolyzer:
     def __init__(self, n_cells, cell_area, temperature, stack_rating_kW=None, dt=1):
 
         # Standard state -> P = 1 atm, T = 298.15 K
 
-        # Constants
-        self.F = 96485.34  # Faraday's constant [C/mol]
-        self.R = 8.314  # ideal gas constant [J/(mol*K)]
+        # Chemical Params #
+        ###################
+
+        # If we rework this class to be more generic, we can have these be specified
+        # as configuration params
+
         self.n = 2  # number of electrons transferred in reaction
-        self.E_th_0 = 1.481  # thermoneutral voltage at standard state
+        # E_th_0 = 1.481  # thermoneutral voltage at standard state
+        self.gibbs = 237.24e3  # Gibbs Energy of global reaction (J/mol)
         self.M = 2.016  # molecular weight [g/mol]
         self.lhv = 33.33  # lower heating value of H2 [kWh/kg]
         self.hhv = 39.41  # higher heating value of H2 [kWh/kg]
 
-        # Degradation variables
+        # Degradation variables #
+        #########################
 
         # This if a flag if voltage needs to be calculated without including degradation
         self.include_degradation_penalty = True
@@ -55,7 +66,8 @@ class Electrolyzer:
         self.voltage_signal = []
         self.voltage_history = []
 
-        # Stack parameters
+        # Stack parameters #
+        ####################
         self.n_cells = n_cells  # Number of cells
         self.cell_area = cell_area  # [cm^2] Cell active area
         self.temperature = temperature  # [C] stack temperature
@@ -84,7 +96,8 @@ class Electrolyzer:
         self.turn_off_time = -1000  # keep track of when the stack was last turned off
         self.wait_time = self.turn_on_delay  # wait time for partial startup procedure
 
-        # Stack dynamics variables
+        # Stack dynamics #
+        ##################
         self.dt = dt  # [s] simulation time step
         self.time = 0  # [s] total time of simulation
         self.tau = 5  # [s] time constant https://www.sciencedirect.com/science/article/pii/S0360319911021380 section 3.4 # noqa
@@ -125,9 +138,7 @@ class Electrolyzer:
 
         return fit_params
 
-    def get_polarization_fits(
-        self, P, I, T, params_fname="./data/polarization_params.json"
-    ):
+    def get_polarization_fits(self, P, I, T):
         """
         P [kWdc]: stack power
         I [Adc]: stack current
@@ -142,19 +153,6 @@ class Electrolyzer:
         fitobj, fitcov = scipy.optimize.curve_fit(
             electrolyzer_model, (P, T), I, p0=paramsinitial
         )
-
-        # print('++++++++++++++++++++++++++++')
-        # print('++++++ Model Results +++++++')
-        # print('++++++++++++++++++++++++++++')
-        # print("Scipy Output:\n",fitobj)
-        # print("Covariance:\n", fitcov)
-
-        # save params as a json file
-        export = False
-        if export:
-            params = dict(zip(["a", "b", "c", "d", "e", "f"], fitobj))
-            with open(params_fname, "w") as fp:
-                json.dump(params, fp, indent=4)
 
         return fitobj
 
@@ -197,7 +195,7 @@ class Electrolyzer:
         self.voltage_history.append(V)
 
         # check if it is an hour to decide whether to calculate fatigue
-        hourly_temp = np.copy(self.hourly_counter)
+        hourly_temp = self.hourly_counter
         self.time += self.dt
         self.hourly_counter = self.time // 3600
         if hourly_temp != self.hourly_counter:
@@ -213,19 +211,24 @@ class Electrolyzer:
 
         return H2_mfr, H2_mass_out, power_left
 
+    def calc_reversible_voltage(self):
+        """
+        Calculates reversible cell voltage (open circuit voltage) at standard state.
+        """
+        return self.gibbs / (self.n * F)
+
     def calc_cell_voltage(self, I, T):
         """
         I [Adc]: stack current
         T [degC]: stack temperature
         return :: V_cell [Vdc/cell]: cell voltage
         """
-        T_K = T + 273.15  # TODO: remove magic number
+        T_K = convert_temperature([T], "C", "K")
 
         # Cell reversible voltage:
-        E_rev_0 = 1.229  # Reversible cell voltage at standard state
-        p_atmo = 101325  # (Pa) atmospheric pressure / pressure of water
-        p_anode = p_atmo  # (Pa) pressure at anode, assumed atmo
-        p_cathode = p_atmo
+        E_rev_0 = self.calc_reversible_voltage()
+        p_anode = P_ATMO  # (Pa) assumed atmo
+        p_cathode = P_ATMO
 
         # noqa: E501
         # Arden Buck equation T=C, https://www.omnicalculator.com/chemistry/vapour-pressure-of-water#vapor-pressure-formulas # noqa
@@ -234,10 +237,10 @@ class Electrolyzer:
         ) * 1e3  # (Pa)
 
         # General Nernst equation
-        E_rev = E_rev_0 + ((self.R * T_K) / (self.n * self.F)) * (
+        E_rev = E_rev_0 + ((R * T_K) / (self.n * F)) * (
             np.log(
-                ((p_anode - p_h2O_sat) / p_atmo)
-                * math.sqrt((p_cathode - p_h2O_sat) / p_atmo)
+                ((p_anode - p_h2O_sat) / P_ATMO)
+                * math.sqrt((p_cathode - p_h2O_sat) / P_ATMO)
             )
         )
 
@@ -259,20 +262,16 @@ class Electrolyzer:
         alpha_c = 0.5
 
         # anode exchange current density TODO: update to be f(T)?
-        i_0_a = 2 * 10 ** (-7)
+        i_0_a = 2e-7
 
         # cathode exchange current density TODO: update to be f(T)?
-        i_0_c = 2 * 10 ** (-3)
+        i_0_c = 2e-3
 
         i = I / self.cell_area
 
         # derived from Butler-Volmer eqs
-        V_act_a = ((self.R * T_anode) / (alpha_a * self.F)) * np.arcsinh(
-            i / (2 * i_0_a)
-        )
-        V_act_c = ((self.R * T_cathode) / (alpha_c * self.F)) * np.arcsinh(
-            i / (2 * i_0_c)
-        )
+        V_act_a = ((R * T_anode) / (alpha_a * F)) * np.arcsinh(i / (2 * i_0_a))
+        V_act_c = ((R * T_cathode) / (alpha_c * F)) * np.arcsinh(i / (2 * i_0_c))
 
         # alternate equations for Activation overpotential
         # Option 2: Dakota: I believe this may be more accurate, found more
@@ -284,8 +283,8 @@ class Electrolyzer:
         # i_0_a = 10**(-9) # anode exchange current density TODO: update to be f(T)?
         # i_0_c = 10**(-3) # cathode exchange current density TODO: update to be f(T)?
 
-        # V_act_a = ((self.R*T_anode)/(alpha_a*z_a*self.F)) * np.log(i/i_0_a)
-        # V_act_c = ((self.R*T_cathode)/(alpha_c*z_c*self.F)) * np.log(i/i_0_c)
+        # V_act_a = ((R*T_anode)/(alpha_a*z_a*F)) * np.log(i/i_0_a)
+        # V_act_c = ((R*T_cathode)/(alpha_c*z_c*F)) * np.log(i/i_0_c)
 
         # Ohmic overpotential:
 
@@ -324,7 +323,7 @@ class Electrolyzer:
         # C_cat_mem_h2 = TODO: complete with equations or can we use approx values?
         # C_cat_mem_h2_0 = TODO: complete with equations or can we use approx values?
 
-        # V_con = ((((self.R*T_K)/(4*self.F))*np.log(C_an_mem_o2/C_an_mem_o2_0)) + (((self.R*T_K)/(4*self.F))*np.log(C_cat_mem_h2/C_cat_mem_h2_0))) # noqa
+        # V_con = ((((R*T_K)/(4*F))*np.log(C_an_mem_o2/C_an_mem_o2_0)) + (((R*T_K)/(4*F))*np.log(C_cat_mem_h2/C_cat_mem_h2_0))) # noqa
 
         # Option 2:
         # PEM Fuel Cell Modeling and simulation using MATLAB ISBN 978-0-12-374259-9
@@ -334,7 +333,7 @@ class Electrolyzer:
         # https://doi.org/10.1016/j.jclepro.2020.121184
 
         # i_L = #limiting current density TODO: get value or eq from Nel / Kaz?
-        # V_con = ((self.R*T_K)/(self.n*self.F))*np.log((i_L/(i_L-i)))
+        # V_con = ((R*T_K)/(self.n*F))*np.log((i_L/(i_L-i)))
 
         # Cell / Stack voltage:
         V_cell = E_rev + V_act_a + V_act_c + V_ohmic
@@ -407,7 +406,7 @@ class Electrolyzer:
         """
         Idc [A]: stack current
         dryer_loss [%]: loss of drying H2
-        return :: mfr [kg/h]: mass flow rate
+        return :: mfr [kg/s]: mass flow rate
         """
         eta_F = self.calc_faradaic_efficiency(Idc)
         mfr = (
@@ -415,7 +414,7 @@ class Electrolyzer:
             * Idc
             * self.M
             * self.n_cells
-            / (self.n * self.F)
+            / (self.n * F)
             * (1 - dryer_loss / 100.0)
         )  # [g/s]
         # mfr = mfr / 1000. * 3600. # [kg/h]
@@ -425,7 +424,7 @@ class Electrolyzer:
     def turn_stack_off(self):
         if self.stack_on or self.stack_waiting:
             # record turn off time to adjust waiting period
-            self.turn_off_time = np.copy(self.time)
+            self.turn_off_time = self.time
             self.stack_on = False
             self.stack_waiting = False
             self.cycle_count += 1
@@ -438,7 +437,7 @@ class Electrolyzer:
     def turn_stack_on(self):
         if not self.stack_on:
             # record turn on time to adjust waiting period
-            self.turn_on_time = np.copy(self.time)
+            self.turn_on_time = self.time
             self.stack_waiting = True
 
             # adjust waiting period
