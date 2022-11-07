@@ -18,6 +18,10 @@ from scipy.constants import R, physical_constants, convert_temperature
 
 
 def electrolyzer_model(X, a, b, c, d, e, f):
+    """
+    Given a power input, temperature, and set of curve fitting parameters,
+    returns currents. Used for polarization curve fitting.
+    """
     P, T = X
     I = a * (P**2) + b * T**2 + c * P * T + d * P + e * T + f
     return I
@@ -26,7 +30,7 @@ def electrolyzer_model(X, a, b, c, d, e, f):
 # Constants #
 #############
 F, _, _ = physical_constants["Faraday constant"]  # Faraday's constant [C/mol]
-P_ATMO, _, _ = physical_constants["standard atmosphere"]
+P_ATMO, _, _ = physical_constants["standard atmosphere"]  # Pa
 
 
 class Electrolyzer:
@@ -75,9 +79,7 @@ class Electrolyzer:
 
         if stack_rating_kW is None:
             # [kW] nameplate power rating
-            self.stack_rating_kW = self.calc_stack_power(
-                self.max_current, self.temperature
-            )
+            self.stack_rating_kW = self.calc_stack_power(self.max_current)
         else:
             self.stack_rating_kW = stack_rating_kW
         self.stack_rating = self.stack_rating_kW * 1e3  # [W] nameplate rating
@@ -107,10 +109,9 @@ class Electrolyzer:
         # create a polarization curve
         self.fit_params = self.create_polarization()
 
-    def curtail_wind_power(self, P_in, T):
+    def curtail_wind_power(self, P_in):
         """
         P_in [kWdc]: input power
-        T [degC]: stack temperature
         Curtail Wind Power if over electrolyzer rating:
         """
         self.P_in = P_in
@@ -126,7 +127,8 @@ class Electrolyzer:
         currents = np.arange(0, self.max_current + interval, interval)
         pieces = []
         for temp in np.arange(40, 60 + 5, 5):
-            powers = self.calc_stack_power(currents, temp)
+            self.temperature = temp
+            powers = self.calc_stack_power(currents)
             tmp = pd.DataFrame({"current_A": currents, "power_kW": powers})
             tmp["temp_C"] = temp
             pieces.append(tmp)
@@ -171,10 +173,10 @@ class Electrolyzer:
             power_left = P_in
 
             I = electrolyzer_model((P_in / 1e3, self.temperature), *self.fit_params)
-            V = self.calc_cell_voltage(I, self.temperature)
-            self.temperature = self.update_temperature(I, V, self.temperature)
+            V = self.calc_cell_voltage(I)
+            self.update_temperature(I, V)
             self.update_degradation()
-            power_left -= self.calc_stack_power(I, self.temperature) * 1e3
+            power_left -= self.calc_stack_power(I) * 1e3
             H2_mfr = self.calc_mass_flow_rate(I)
             self.stack_state, H2_mfr = self.update_dynamics(H2_mfr, self.stack_state)
 
@@ -217,13 +219,12 @@ class Electrolyzer:
         """
         return self.gibbs / (self.n * F)
 
-    def calc_cell_voltage(self, I, T):
+    def calc_cell_voltage(self, I):
         """
         I [Adc]: stack current
-        T [degC]: stack temperature
         return :: V_cell [Vdc/cell]: cell voltage
         """
-        T_K = convert_temperature([T], "C", "K")
+        T_K = convert_temperature([self.temperature], "C", "K")
 
         # Cell reversible voltage:
         E_rev_0 = self.calc_reversible_voltage()
@@ -233,7 +234,11 @@ class Electrolyzer:
         # noqa: E501
         # Arden Buck equation T=C, https://www.omnicalculator.com/chemistry/vapour-pressure-of-water#vapor-pressure-formulas # noqa
         p_h2O_sat = (
-            0.61121 * math.exp((18.678 - (T / 234.5)) * (T / (257.14 + T)))
+            0.61121
+            * math.exp(
+                (18.678 - (self.temperature / 234.5))
+                * (self.temperature / (257.14 + self.temperature))
+            )
         ) * 1e3  # (Pa)
 
         # General Nernst equation
@@ -343,13 +348,13 @@ class Electrolyzer:
 
         return V_cell
 
-    def calc_stack_power(self, Idc, T):
+    def calc_stack_power(self, Idc):
         """
         Idc [A]: stack current
         T [degC]: stack temperature
         return :: Pdc [kW]: stack power
         """
-        Pdc = Idc * self.calc_cell_voltage(Idc, T) * self.n_cells  # [W]
+        Pdc = Idc * self.calc_cell_voltage(Idc) * self.n_cells  # [W]
         Pdc = Pdc / 1000.0  # [kW]
 
         return Pdc
@@ -458,9 +463,9 @@ class Electrolyzer:
                     self.stack_waiting = False
                     self.stack_on = True
 
-    def update_temperature(self, I, V, temp):
+    def update_temperature(self, I, V):
         # placeholder
-        return temp
+        return self.temperature
 
     def update_dynamics(self, H2_mfr_ss, stack_state):
         """

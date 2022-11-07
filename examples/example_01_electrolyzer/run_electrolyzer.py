@@ -7,7 +7,11 @@ import matplotlib.pyplot as plt
 from electrolyzer.electrolyzer import Electrolyzer, electrolyzer_model
 
 
-elec = Electrolyzer(100, 1000, 60, dt=1)
+n_cells = 100  # number of cells in stack
+cell_area = 1000  # cell area, cm^2
+temperature = 60  # temperature
+
+elec = Electrolyzer(n_cells, cell_area, temperature, dt=1)
 
 cur = np.linspace(0, 2500, 100)
 fit_error = np.zeros_like(cur)
@@ -16,16 +20,19 @@ p_fit = np.zeros_like(cur)
 voltage = np.zeros_like(cur)
 
 for i in range(len(cur)):
-    fit_error[i] = elec.calc_stack_power(cur[i], 60) - elec.calc_stack_power(
-        electrolyzer_model((elec.calc_stack_power(cur[i], 60), 60), *elec.fit_params),
-        60,
+    fit_error[i] = elec.calc_stack_power(cur[i]) - elec.calc_stack_power(
+        electrolyzer_model(
+            (elec.calc_stack_power(cur[i]), temperature), *elec.fit_params
+        )
     )
-    p_actual[i] = elec.calc_stack_power(cur[i], 60)
+    p_actual[i] = elec.calc_stack_power(cur[i])
     p_fit[i] = elec.calc_stack_power(
-        electrolyzer_model((elec.calc_stack_power(cur[i], 60), 60), *elec.fit_params),
-        60,
+        electrolyzer_model(
+            (elec.calc_stack_power(cur[i]), temperature), *elec.fit_params
+        )
     )
-    voltage[i] = elec.calc_cell_voltage(cur[i], 60)
+    voltage[i] = elec.calc_cell_voltage(cur[i])
+
 fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
 
 ax1.plot(cur / (1000), fit_error / elec.stack_rating_kW * 100)
