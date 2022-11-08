@@ -10,8 +10,9 @@ from electrolyzer.electrolyzer import Electrolyzer, electrolyzer_model
 n_cells = 100  # number of cells in stack
 cell_area = 1000  # cell area, cm^2
 temperature = 60  # temperature
+max_current = 2000
 
-elec = Electrolyzer(n_cells, cell_area, temperature, dt=1)
+elec = Electrolyzer(n_cells, cell_area, temperature, max_current, dt=1)
 
 cur = np.linspace(0, 2500, 100)
 fit_error = np.zeros_like(cur)

@@ -19,11 +19,13 @@ from scipy.constants import R, physical_constants, convert_temperature
 
 def electrolyzer_model(X, a, b, c, d, e, f):
     """
-    Given a power input, temperature, and set of curve fitting parameters,
-    returns currents. Used for polarization curve fitting.
+    Given a power input, temperature, and set of coefficients, returns current.
+    Coefficients can be determined using non-linear least squares fit (see
+    `Electrolyzer.create_polarization`).
     """
     P, T = X
     I = a * (P**2) + b * T**2 + c * P * T + d * P + e * T + f
+
     return I
 
 
@@ -34,8 +36,20 @@ P_ATMO, _, _ = physical_constants["standard atmosphere"]  # Pa
 
 
 class Electrolyzer:
-    def __init__(self, n_cells, cell_area, temperature, stack_rating_kW=None, dt=1):
-
+    def __init__(
+        self,
+        # TODO: These args will be replaced with a validated Dict in #11
+        n_cells,
+        cell_area,
+        temperature,
+        max_current,
+        min_power=None,
+        stack_rating_kW=None,
+        include_degradation_penalty=True,
+        turn_on_delay=600,
+        tau=5,
+        dt=1,
+    ):
         # Standard state -> P = 1 atm, T = 298.15 K
 
         # Chemical Params #
@@ -51,11 +65,11 @@ class Electrolyzer:
         self.lhv = 33.33  # lower heating value of H2 [kWh/kg]
         self.hhv = 39.41  # higher heating value of H2 [kWh/kg]
 
-        # Degradation variables #
-        #########################
+        # Degradation state #
+        #####################
 
         # This if a flag if voltage needs to be calculated without including degradation
-        self.include_degradation_penalty = True
+        self.include_degradation_penalty = include_degradation_penalty
 
         # fatigue value for tracking fatigue in terms of "stress cycles"
         # rainflow counting
@@ -75,49 +89,54 @@ class Electrolyzer:
         self.n_cells = n_cells  # Number of cells
         self.cell_area = cell_area  # [cm^2] Cell active area
         self.temperature = temperature  # [C] stack temperature
-        self.max_current = 2 * self.cell_area  # [A/cm^2] current density
+        self.max_current = max_current  # max current
 
         if stack_rating_kW is None:
             # [kW] nameplate power rating
             self.stack_rating_kW = self.calc_stack_power(self.max_current)
         else:
             self.stack_rating_kW = stack_rating_kW
+
         self.stack_rating = self.stack_rating_kW * 1e3  # [W] nameplate rating
 
         # [W] cannot operate at less than 10% of rated power
-        self.min_power = 0.1 * self.stack_rating
-        # self.h2_pres_out = 31                     # H2 outlet pressure (bar)
+        self.min_power = min_power or (0.1 * self.stack_rating)
+        # self.h2_pres_out = 31  # H2 outlet pressure (bar)
+
+        # create a polarization curve
+        self.fit_params = self.create_polarization()
+
+        # Stack dynamics #
+        ##################
 
         # 10 minute startup procedure
         self.stack_on = False
         self.stack_waiting = False  # going through startup procedure
 
         # [s] 10 minute time delay for PEM electrolyzer startup procedure
-        self.turn_on_delay = 600
-        self.turn_on_time = 0  # keep track of when the stack was last turned on
-        self.turn_off_time = -1000  # keep track of when the stack was last turned off
-        self.wait_time = self.turn_on_delay  # wait time for partial startup procedure
+        self.turn_on_delay = turn_on_delay
 
-        # Stack dynamics #
-        ##################
+        # keep track of when the stack was last turned on
+        self.turn_on_time = 0
+
+        # keep track of when the stack was last turned off
+        self.turn_off_time = -1000
+
+        # wait time for partial startup procedure
+        self.wait_time = self.turn_on_delay
+
         self.dt = dt  # [s] simulation time step
         self.time = 0  # [s] total time of simulation
-        self.tau = 5  # [s] time constant https://www.sciencedirect.com/science/article/pii/S0360319911021380 section 3.4 # noqa
+        self.tau = tau  # [s] time constant https://www.sciencedirect.com/science/article/pii/S0360319911021380 section 3.4 # noqa
         self.DTSS = self.calculate_state_space()
         self.stack_state = 0.0
 
-        # create a polarization curve
-        self.fit_params = self.create_polarization()
-
-    def curtail_wind_power(self, P_in):
+    def curtail_power(self, P_in):
         """
         P_in [kWdc]: input power
-        Curtail Wind Power if over electrolyzer rating:
+        Curtail power if over electrolyzer rating:
         """
-        self.P_in = P_in
-        self.P_in = np.where(
-            self.P_in > self.stack_rating_kW, self.stack_rating_kW, self.P_in
-        )
+        return np.where(P_in > self.stack_rating_kW, self.stack_rating_kW, P_in)
 
     # ------------------------------------------------------------
     # Polarization model
@@ -213,20 +232,8 @@ class Electrolyzer:
 
         return H2_mfr, H2_mass_out, power_left
 
-    def calc_reversible_voltage(self):
-        """
-        Calculates reversible cell voltage (open circuit voltage) at standard state.
-        """
-        return self.gibbs / (self.n * F)
-
-    def calc_cell_voltage(self, I):
-        """
-        I [Adc]: stack current
-        return :: V_cell [Vdc/cell]: cell voltage
-        """
-        T_K = convert_temperature([self.temperature], "C", "K")
-
-        # Cell reversible voltage:
+    def calc_open_circuit_voltage(self, T_K):
+        """Calculates open circuit voltage using the Nernst equation."""
         E_rev_0 = self.calc_reversible_voltage()
         p_anode = P_ATMO  # (Pa) assumed atmo
         p_cathode = P_ATMO
@@ -242,14 +249,25 @@ class Electrolyzer:
         ) * 1e3  # (Pa)
 
         # General Nernst equation
-        E_rev = E_rev_0 + ((R * T_K) / (self.n * F)) * (
+        E_cell = E_rev_0 + ((R * T_K) / (self.n * F)) * (
             np.log(
                 ((p_anode - p_h2O_sat) / P_ATMO)
                 * math.sqrt((p_cathode - p_h2O_sat) / P_ATMO)
             )
         )
 
-        # Activation overpotential:
+        return E_cell
+
+    def calc_reversible_voltage(self):
+        """
+        Calculates reversible cell potential at standard state.
+        """
+        return self.gibbs / (self.n * F)
+
+    def calc_activation_overpotential(self, i, T_K):
+        """
+        Calculates activation overpotential for a given current density and temperature.
+        """
         # Option 1:
 
         # constants below assumed from https://www.sciencedirect.com/science/article/pii/S0360319916318341?via%3Dihub # noqa
@@ -272,8 +290,6 @@ class Electrolyzer:
         # cathode exchange current density TODO: update to be f(T)?
         i_0_c = 2e-3
 
-        i = I / self.cell_area
-
         # derived from Butler-Volmer eqs
         V_act_a = ((R * T_anode) / (alpha_a * F)) * np.arcsinh(i / (2 * i_0_a))
         V_act_c = ((R * T_cathode) / (alpha_c * F)) * np.arcsinh(i / (2 * i_0_c))
@@ -291,8 +307,12 @@ class Electrolyzer:
         # V_act_a = ((R*T_anode)/(alpha_a*z_a*F)) * np.log(i/i_0_a)
         # V_act_c = ((R*T_cathode)/(alpha_c*z_c*F)) * np.log(i/i_0_c)
 
-        # Ohmic overpotential:
+        return V_act_a, V_act_c
 
+    def calc_ohmic_overpotential(self, i, T_K):
+        """
+        Calculates Ohmic overpotential for a given current density and temperature.
+        """
         # pulled from https://www.sciencedirect.com/science/article/pii/S0360319917309278?via%3Dihub # noqa
         # TODO: pulled from empirical data, is there a better eq?
         lambda_nafion = ((-2.89556 + (0.016 * T_K)) + 1.625) / 0.1875
@@ -315,7 +335,9 @@ class Electrolyzer:
 
         V_ohmic = i * (R_ohmic_elec + R_ohmic_ionic)
 
-        # Concentration overpotential:
+        return V_ohmic
+
+    def calc_concentration_overpotential(self):
         # TODO: complete this section
         # Option 1:
         # https://www.sciencedirect.com/science/article/pii/S0360319918309017
@@ -339,9 +361,30 @@ class Electrolyzer:
 
         # i_L = #limiting current density TODO: get value or eq from Nel / Kaz?
         # V_con = ((R*T_K)/(self.n*F))*np.log((i_L/(i_L-i)))
+        return 0
 
-        # Cell / Stack voltage:
-        V_cell = E_rev + V_act_a + V_act_c + V_ohmic
+    def calc_overpotentials(self, i, T_K):
+        """
+        Calculates overpotentials for a given current density and temperature.
+        """
+        V_act_a, V_act_c = self.calc_activation_overpotential(i, T_K)
+        V_ohm = self.calc_ohmic_overpotential(i, T_K)
+        V_conc = self.calc_concentration_overpotential()
+
+        return (V_act_a, V_act_c, V_ohm, V_conc)
+
+    def calc_cell_voltage(self, I):
+        """
+        I [Adc]: stack current
+        return :: V_cell [Vdc/cell]: cell voltage
+        """
+        T_K = convert_temperature([self.temperature], "C", "K")
+        i = I / self.cell_area  # current density, A/cm^2
+
+        E_cell = self.calc_open_circuit_voltage(T_K)
+        V_act_a, V_act_c, V_ohm, V_conc = self.calc_overpotentials(i, T_K)
+
+        V_cell = E_cell + V_act_a + V_act_c + V_ohm + V_conc
 
         if self.include_degradation_penalty:
             V_cell += self.V_degradation
@@ -365,15 +408,7 @@ class Electrolyzer:
         T [degC]: stack temperature
         return :: Idc [A]: stack current
         """
-        Idc = electrolyzer_model(
-            (Pdc, T),
-            self.fit_params[0],
-            self.fit_params[1],
-            self.fit_params[2],
-            self.fit_params[3],
-            self.fit_params[4],
-            self.fit_params[5],
-        )
+        Idc = electrolyzer_model((Pdc, T), *self.fit_params)
         return Idc
 
     # ------------------------------------------------------------
