@@ -9,6 +9,14 @@ Electrolyzer
 .. image:: https://readthedocs.org/projects/electrolyzer/badge/?version=latest
         :target: https://electrolyzer.readthedocs.io/en/latest/?version=latest
         :alt: Documentation Status
+        
+.. image:: https://github.com/NREL/electrolyzer/actions/workflows/continuous-integration-workflow.yaml/badge.svg
+        :target: https://github.com/NREL/electrolyzer/actions/workflows/continuous-integration-workflow.yaml
+        :alt: CI Status
+        
+.. image:: https://github.com/NREL/electrolyzer/actions/workflows/black.yml/badge.svg
+        :target: https://github.com/NREL/electrolyzer/actions/workflows/black.yml
+        :alt: Lint
 
 
 

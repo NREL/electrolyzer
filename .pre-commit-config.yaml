@@ -1,0 +1,35 @@
+repos:
+-   repo: https://github.com/timothycrosley/isort
+    rev: 5.10.1
+    hooks:
+        - id: isort
+          name: isort
+          stages: [commit]
+
+-   repo: https://github.com/psf/black
+    rev: 22.10.0
+    hooks:
+        - id: black
+          name: black
+          stages: [commit]
+          language_version: python3
+
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.3.0
+    hooks:
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+    -   id: check-executables-have-shebangs
+    -   id: check-json
+    -   id: check-yaml
+    -   id: check-merge-conflict
+    -   id: check-symlinks
+    -   id: mixed-line-ending
+    -   id: pretty-format-json
+        args: [--autofix]
+
+-   repo: https://github.com/pycqa/flake8
+    rev: '5.0.4'
+    hooks:
+    -   id: flake8
+        args: [--max-line-length=88, "--ignore=E741,W503"]
