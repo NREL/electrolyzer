@@ -1,0 +1,241 @@
+"""
+This module defines a Hydrogen Electrolyzer Cell
+"""
+# TODOs
+# * refine calcCellVoltage(); compare with alkaline models
+# * refine convertACtoDC(); compare with empirical ESIF model
+# * refine calcFaradaicEfficiency(); compare with other model
+# * add a separate script to show results
+
+import numpy as np
+from scipy.constants import R, physical_constants, convert_temperature
+
+
+def electrolyzer_model(X, a, b, c, d, e, f):
+    """
+    Given a power input, temperature, and set of coefficients, returns current.
+    Coefficients can be determined using non-linear least squares fit (see
+    `ElectrolyzerCell.create_polarization`).
+    """
+    P, T = X
+    I = a * (P**2) + b * T**2 + c * P * T + d * P + e * T + f
+
+    return I
+
+
+# Constants #
+#############
+F, _, _ = physical_constants["Faraday constant"]  # Faraday's constant [C/mol]
+P_ATMO, _, _ = physical_constants["standard atmosphere"]  # Pa
+
+
+class ElectrolyzerCell:
+    def __init__(
+        self,
+        cell_area,
+        temperature,
+    ):
+        # Standard state -> P = 1 atm, T = 298.15 K
+
+        # Chemical Params #
+        ###################
+
+        # If we rework this class to be more generic, we can have these be specified
+        # as configuration params
+
+        self.n = 2  # number of electrons transferred in reaction
+        # E_th_0 = 1.481  # thermoneutral voltage at standard state
+        self.gibbs = 237.24e3  # Gibbs Energy of global reaction (J/mol)
+        self.M = 2.016  # molecular weight [g/mol]
+        self.lhv = 33.33  # lower heating value of H2 [kWh/kg]
+        self.hhv = 39.41  # higher heating value of H2 [kWh/kg]
+
+        self.cell_area = cell_area
+
+    def calc_open_circuit_voltage(self, temperature):
+        """Calculates open circuit voltage using the Nernst equation."""
+        T_K = convert_temperature([temperature], "C", "K")
+        E_rev_0 = self.calc_reversible_voltage()
+        p_anode = P_ATMO  # (Pa) assumed atmo
+        p_cathode = P_ATMO
+
+        # noqa: E501
+        # Arden Buck equation T=C, https://www.omnicalculator.com/chemistry/vapour-pressure-of-water#vapor-pressure-formulas # noqa
+        p_h2O_sat = (
+            0.61121
+            * np.exp(
+                (18.678 - (temperature / 234.5))
+                * (temperature / (257.14 + temperature))
+            )
+        ) * 1e3  # (Pa)
+
+        # General Nernst equation
+        E_cell = E_rev_0 + ((R * T_K) / (self.n * F)) * (
+            np.log(
+                ((p_anode - p_h2O_sat) / P_ATMO)
+                * np.sqrt((p_cathode - p_h2O_sat) / P_ATMO)
+            )
+        )
+
+        return E_cell
+
+    def calc_reversible_voltage(self):
+        """
+        Calculates reversible cell potential at standard state.
+        """
+        return self.gibbs / (self.n * F)
+
+    def calc_activation_overpotential(self, i, T_K):
+        """
+        Calculates activation overpotential for a given current density and temperature.
+        """
+        # Option 1:
+
+        # constants below assumed from https://www.sciencedirect.com/science/article/pii/S0360319916318341?via%3Dihub # noqa
+
+        # TODO: updated with realistic anode temperature? 70-80 C nominal operating
+        # temperature 58C
+        T_anode = T_K
+
+        T_cathode = T_K  # TODO: updated with realistic anode temperature?
+
+        # anode charge transfer coefficient TODO: is this a realistic value?
+        alpha_a = 2
+
+        # cathode charge transfer coefficient TODO: is this a realistic value?
+        alpha_c = 0.5
+
+        # anode exchange current density TODO: update to be f(T)?
+        i_0_a = 2e-7
+
+        # cathode exchange current density TODO: update to be f(T)?
+        i_0_c = 2e-3
+
+        # derived from Butler-Volmer eqs
+        V_act_a = ((R * T_anode) / (alpha_a * F)) * np.arcsinh(i / (2 * i_0_a))
+        V_act_c = ((R * T_cathode) / (alpha_c * F)) * np.arcsinh(i / (2 * i_0_c))
+
+        # alternate equations for Activation overpotential
+        # Option 2: Dakota: I believe this may be more accurate, found more
+        # frequently in lit review
+        # https://www.sciencedirect.com/science/article/pii/S0360319918309017
+
+        # z_a = 4 # stoichiometric coefficient of electrons transferred at anode
+        # z_c = 2 # stoichometric coefficient of electrons transferred at cathode
+        # i_0_a = 10**(-9) # anode exchange current density TODO: update to be f(T)?
+        # i_0_c = 10**(-3) # cathode exchange current density TODO: update to be f(T)?
+
+        # V_act_a = ((R*T_anode)/(alpha_a*z_a*F)) * np.log(i/i_0_a)
+        # V_act_c = ((R*T_cathode)/(alpha_c*z_c*F)) * np.log(i/i_0_c)
+
+        return V_act_a, V_act_c
+
+    def calc_ohmic_overpotential(self, i, T_K):
+        """
+        Calculates Ohmic overpotential for a given current density and temperature.
+        """
+        # pulled from https://www.sciencedirect.com/science/article/pii/S0360319917309278?via%3Dihub # noqa
+        # TODO: pulled from empirical data, is there a better eq?
+        lambda_nafion = ((-2.89556 + (0.016 * T_K)) + 1.625) / 0.1875
+        t_nafion = 0.03  # (cm) TODO: confirm actual thickness?
+
+        # TODO: confirm with Nel, is there a better eq?
+        sigma_nafion = ((0.005139 * lambda_nafion) - 0.00326) * np.exp(
+            1268 * ((1 / 303) - (1 / T_K))
+        )
+        R_ohmic_ionic = t_nafion / sigma_nafion
+
+        # TODO: confirm realistic value with Nel https://www.sciencedirect.com/science/article/pii/S0378775315001901 # noqa
+        R_ohmic_elec = 50e-3
+
+        # Alternate R_ohmic_elec from https://www.sciencedirect.com/science/article/pii/S0360319918309017 # noqa
+        # rho =  (ohm*m) material resistivity
+        # l_path = (m) length of electron path
+        # A_path = (m2) cross-sectional area of conductor path
+        # R_ohmic_elec = ((rho*l_path)/A_path)
+
+        V_ohmic = i * (R_ohmic_elec + R_ohmic_ionic)
+
+        return V_ohmic
+
+    def calc_concentration_overpotential(self):
+        # TODO: complete this section
+        # Option 1:
+        # https://www.sciencedirect.com/science/article/pii/S0360319918309017
+        # equations governing concentration losses / diffusion are pretty complex;
+        # hoping to get an approx value or eqs from Kaz / Nel for concentration of O2
+        # and H2 at electrodes else can add in equations from this paper or others to
+        # get into diffusion.
+        # C_an_mem_o2 = TODO: complete with equations or can we use approx values?
+        # C_an_mem_o2_0 = TODO: complete with equations or can we use approx values?
+        # C_cat_mem_h2 = TODO: complete with equations or can we use approx values?
+        # C_cat_mem_h2_0 = TODO: complete with equations or can we use approx values?
+
+        # V_con = ((((R*T_K)/(4*F))*np.log(C_an_mem_o2/C_an_mem_o2_0)) + (((R*T_K)/(4*F))*np.log(C_cat_mem_h2/C_cat_mem_h2_0))) # noqa
+
+        # Option 2:
+        # PEM Fuel Cell Modeling and simulation using MATLAB ISBN 978-0-12-374259-9
+        # (saved in H2@scale teams>Lit Review>Fuel Cells folder)
+
+        # Similar relationship with -log(1-i/i_L) found here
+        # https://doi.org/10.1016/j.jclepro.2020.121184
+
+        # i_L = #limiting current density TODO: get value or eq from Nel / Kaz?
+        # V_con = ((R*T_K)/(self.n*F))*np.log((i_L/(i_L-i)))
+        return 0
+
+    def calc_overpotentials(self, i, T_K):
+        """
+        Calculates overpotentials for a given current density and temperature.
+        """
+        V_act_a, V_act_c = self.calc_activation_overpotential(i, T_K)
+        V_ohm = self.calc_ohmic_overpotential(i, T_K)
+        V_conc = self.calc_concentration_overpotential()
+
+        return (V_act_a, V_act_c, V_ohm, V_conc)
+
+    def calc_cell_voltage(self, I, temperature):
+        """
+        I [Adc]: current
+        return :: V_cell [Vdc/cell]: cell voltage
+        """
+        T_K = convert_temperature([temperature], "C", "K")
+        i = I / self.cell_area  # current density, A/cm^2
+
+        E_cell = self.calc_open_circuit_voltage(temperature)
+        V_act_a, V_act_c, V_ohm, V_conc = self.calc_overpotentials(i, T_K)
+
+        V_cell = E_cell + V_act_a + V_act_c + V_ohm + V_conc
+
+        return V_cell
+
+    # ------------------------------------------------------------
+    # Post H2 production
+    # ------------------------------------------------------------
+    def calc_faradaic_efficiency(self, I):
+        """
+        I [A]: current
+        return :: eta_F [-]: Faraday's efficiency
+        Reference: https://res.mdpi.com/d_attachment/energies/energies-13-04792/article_deploy/energies-13-04792-v2.pdf
+        """  # noqa
+        f_1 = 250  # (mA2/cm4)
+        f_2 = 0.996
+        i_cell = I * 1000
+
+        eta_F = (
+            ((i_cell / self.cell_area) ** 2) / (f_1 + ((i_cell / self.cell_area) ** 2))
+        ) * f_2
+
+        return eta_F
+
+    def calc_mass_flow_rate(self, Idc, dryer_loss=6.5):
+        """
+        Idc [A]: stack current
+        dryer_loss [%]: loss of drying H2
+        return :: mfr [kg/s]: mass flow rate
+        """
+        eta_F = self.calc_faradaic_efficiency(Idc)
+        mfr = eta_F * Idc * self.M / (self.n * F) * (1 - dryer_loss / 100.0)  # [g/s]
+        # mfr = mfr / 1000. * 3600. # [kg/h]
+        mfr = mfr / 1e3  # [kg/s]
+        return mfr

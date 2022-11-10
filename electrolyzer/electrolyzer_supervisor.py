@@ -3,7 +3,7 @@ This module defines the Hydrogen Electrolyzer control code.
 """
 import numpy as np
 
-from electrolyzer.electrolyzer import Electrolyzer
+from .electrolyzer_stack import ElectrolyzerStack
 
 
 class ElectrolyzerSupervisor:
@@ -87,7 +87,9 @@ class ElectrolyzerSupervisor:
         stacks = []
         for i in range(self.n_stacks):
             stacks.append(
-                Electrolyzer(self.n_cells, self.cell_area, self.temperature, dt=self.dt)
+                ElectrolyzerStack(
+                    self.n_cells, self.cell_area, self.temperature, dt=self.dt
+                )
             )
             self.stack_rotation.append(i)
             print(
