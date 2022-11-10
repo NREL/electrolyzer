@@ -4,8 +4,7 @@ This example runs the Electrolyzer on its own and generates polarization curves.
 import numpy as np
 import matplotlib.pyplot as plt
 
-from electrolyzer.electrolyzer_cell import electrolyzer_model
-from electrolyzer.electrolyzer_stack import ElectrolyzerStack
+from electrolyzer import Stack, electrolyzer_model
 
 
 n_cells = 100  # number of cells in stack
@@ -13,7 +12,7 @@ cell_area = 1000  # cell area, cm^2
 temperature = 60  # temperature
 max_current = 2000
 
-elec = ElectrolyzerStack(n_cells, cell_area, temperature, max_current, dt=1)
+elec = Stack(n_cells, cell_area, temperature, max_current, dt=1)
 
 cur = np.linspace(0, 2500, 100)
 p_fit = elec.calc_stack_power(

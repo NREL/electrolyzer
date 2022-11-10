@@ -29,11 +29,10 @@ F, _, _ = physical_constants["Faraday constant"]  # Faraday's constant [C/mol]
 P_ATMO, _, _ = physical_constants["standard atmosphere"]  # Pa
 
 
-class ElectrolyzerCell:
+class Cell:
     def __init__(
         self,
         cell_area,
-        temperature,
     ):
         # Standard state -> P = 1 atm, T = 298.15 K
 

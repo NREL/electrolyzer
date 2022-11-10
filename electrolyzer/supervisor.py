@@ -3,10 +3,10 @@ This module defines the Hydrogen Electrolyzer control code.
 """
 import numpy as np
 
-from .electrolyzer_stack import ElectrolyzerStack
+from .stack import Stack
 
 
-class ElectrolyzerSupervisor:
+class Supervisor:
     def __init__(self, electrolyzer_dict, control_type, dt=1):
 
         # H2 farm parameters
@@ -87,9 +87,7 @@ class ElectrolyzerSupervisor:
         stacks = []
         for i in range(self.n_stacks):
             stacks.append(
-                ElectrolyzerStack(
-                    self.n_cells, self.cell_area, self.temperature, dt=self.dt
-                )
+                Stack(self.n_cells, self.cell_area, self.temperature, dt=self.dt)
             )
             self.stack_rotation.append(i)
             print(

@@ -5,10 +5,10 @@ import pandas as pd
 import rainflow
 from scipy.signal import tf2ss, cont2discrete
 
-from .electrolyzer_cell import ElectrolyzerCell, electrolyzer_model
+from .cell import Cell, electrolyzer_model
 
 
-class ElectrolyzerStack:
+class Stack:
     def __init__(
         self,
         # TODO: These args will be replaced with a validated Dict in #11
@@ -44,7 +44,7 @@ class ElectrolyzerStack:
 
         # Stack parameters #
         ####################
-        self.cell = ElectrolyzerCell(cell_area, temperature)
+        self.cell = Cell(cell_area)
         self.max_current = max_current
         self.n_cells = n_cells  # Number of cells
         self.temperature = temperature
