@@ -5,7 +5,7 @@
 import pytest
 import numpy as np
 
-from electrolyzer import electrolyzer
+import electrolyzer
 
 
 @pytest.fixture
@@ -32,10 +32,10 @@ def test_cost_init():
     electrolyzer_type="PEM"
 
     # initialize cost class
-    costing = electrolyzer.cost(lcoe, energy, hydrogen_produced, electrolyzer_type, lifetime)
+    costing = electrolyzer.cost.cost(lcoe, energy, hydrogen_produced, electrolyzer_type, lifetime)
 
     # check if instance was successfully created
-    isinstance(costing, electrolyzer.cost)
+    isinstance(costing, electrolyzer.cost.cost)
 
 def test_cost_lcoh():
 
@@ -47,7 +47,7 @@ def test_cost_lcoh():
     electrolyzer_type="PEM"
 
     # initialize electrolyzer cost class
-    costing = electrolyzer.cost(lcoe, energy, hydrogen_produced, electrolyzer_type, lifetime)
+    costing = electrolyzer.cost.cost(lcoe, energy, hydrogen_produced, electrolyzer_type, lifetime)
 
     # calculate lcoh
     lcoh = costing.levelized_cost_of_hydrogen()
