@@ -12,7 +12,14 @@ cell_area = 1000  # cell area, cm^2
 temperature = 60  # temperature
 max_current = 2000
 
-elec = Stack(n_cells, cell_area, temperature, max_current, dt=1)
+stack_dict = {
+    "n_cells": n_cells,
+    "cell_area": cell_area,
+    "temperature": temperature,
+    "max_current": max_current,
+}
+
+elec = Stack.from_dict(stack_dict)
 
 cur = np.linspace(0, 2500, 100)
 p_fit = elec.calc_stack_power(

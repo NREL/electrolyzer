@@ -7,3 +7,4 @@ matplotlib
 rainflow
 pytest
 pre-commit
+attrs

@@ -3,89 +3,113 @@ import numpy as np
 import scipy
 import pandas as pd
 import rainflow
+from attrs import field, define
 from scipy.signal import tf2ss, cont2discrete
 
 from .cell import Cell, electrolyzer_model
+from .type_dec import NDArrayFloat, FromDictMixin
 
 
-class Stack:
-    def __init__(
-        self,
-        # TODO: These args will be replaced with a validated Dict in #11
-        n_cells,
-        cell_area,
-        temperature,
-        max_current,
-        min_power=None,
-        stack_rating_kW=None,
-        include_degradation_penalty=True,
-        turn_on_delay=600,
-        tau=5,
-        dt=1,
-    ):
-        # Degradation state #
-        #####################
+@define
+class Stack(FromDictMixin):
+    # Stack parameters #
+    ####################
+    cell_area: float
+    max_current: float
+    temperature: float
+    n_cells: int
 
-        # This if a flag if voltage needs to be calculated without including degradation
-        self.include_degradation_penalty = include_degradation_penalty
+    min_power: float = None
+    stack_rating_kW: float = None
 
-        # fatigue value for tracking fatigue in terms of "stress cycles"
-        # rainflow counting
-        self.rf_track = 0
+    # initialized in __attrs_post_init
+    cell: Cell = field(init=False)
+    fit_params: NDArrayFloat = field(init=False)
+    stack_rating: float = field(init=False)
 
-        self.V_degradation = 0  # [V] running degradation voltage penalty
-        self.uptime = 0  # [s] amount of time this electrolyzer stack has been running
-        self.cycle_count = 0  # numer of times the stack has been turned off
-        self.fatigue_history = 0  # [V] running count of fatigue voltage penalty
-        self.hourly_counter = 0
-        self.hour_change = False
-        self.voltage_signal = []
-        self.voltage_history = []
+    # Degradation state #
+    #####################
 
+    include_degradation_penalty: bool = True
+
+    # fatigue value for tracking fatigue in terms of "stress cycles"
+    # rainflow counting
+    rf_track: float = field(init=False, default=0)
+
+    # [V] running degradation voltage penalty
+    V_degradation: float = field(init=False, default=0)
+
+    # [s] amount of time this electrolyzer stack has been running
+    uptime: float = field(init=False, default=0)
+
+    # numer of times the stack has been turned off
+    cycle_count: int = field(init=False, default=0)
+
+    # [V] running count of fatigue voltage penalty
+    fatigue_history: float = field(init=False, default=0)
+
+    hourly_counter: float = field(init=False, default=0)
+    hour_change: bool = field(init=False, default=False)
+    voltage_signal: NDArrayFloat = field(init=False, default=[])
+    voltage_history: NDArrayFloat = field(init=False, default=[])
+
+    # Stack dynamics #
+    ##################
+
+    # 10 minute startup procedure
+    stack_on: bool = field(init=False, default=False)
+    stack_waiting: bool = field(init=False, default=False)
+
+    # [s] 10 minute time delay for PEM electrolyzer startup procedure
+    turn_on_delay: float = 600
+
+    # keep track of when the stack was last turned on
+    turn_on_time: float = field(init=False, default=0)
+
+    # keep track of when the stack was last turned off
+    turn_off_time: float = field(init=False, default=-1000)
+
+    # wait time for partial startup procedure (set in __attrs_post_init)
+    wait_time: float = field(init=False)
+
+    # [s] simulation time step
+    dt: float = 1
+
+    # [s] total time of simulation
+    time: float = field(init=False, default=0)
+
+    # [s] time constant https://www.sciencedirect.com/science/article/pii/S0360319911021380 section 3.4 # noqa
+    tau: float = 5
+
+    stack_state: float = field(init=False, default=0)
+
+    # state space, (set in __attrs_post_init)
+    DTSS: NDArrayFloat = field(init=False)
+
+    def __attrs_post_init__(self) -> None:
         # Stack parameters #
         ####################
-        self.cell = Cell(cell_area)
-        self.max_current = max_current
-        self.n_cells = n_cells  # Number of cells
-        self.temperature = temperature
+
+        self.cell = Cell(self.cell_area)
         self.fit_params = self.create_polarization()
-
-        if stack_rating_kW is None:
-            # [kW] nameplate power rating
-            self.stack_rating_kW = self.calc_stack_power(max_current)
-        else:
-            self.stack_rating_kW = stack_rating_kW
-
-        self.stack_rating = self.stack_rating_kW * 1e3  # [W] nameplate rating
-
-        # [W] cannot operate at less than 10% of rated power
-        self.min_power = min_power or (0.1 * self.stack_rating)
-        # self.h2_pres_out = 31  # H2 outlet pressure (bar)
 
         # Stack dynamics #
         ##################
 
-        # 10 minute startup procedure
-        self.stack_on = False
-        self.stack_waiting = False  # going through startup procedure
+        self.wait_time = self.turn_on_time
 
-        # [s] 10 minute time delay for PEM electrolyzer startup procedure
-        self.turn_on_delay = turn_on_delay
+        # [kW] nameplate power rating
+        self.stack_rating_kW = self.stack_rating_kW or self.calc_stack_power(
+            self.max_current
+        )
 
-        # keep track of when the stack was last turned on
-        self.turn_on_time = 0
+        self.stack_rating = self.stack_rating_kW * 1e3  # [W] nameplate rating
 
-        # keep track of when the stack was last turned off
-        self.turn_off_time = -1000
+        # [W] cannot operate at less than 10% of rated power
+        self.min_power = self.min_power or (0.1 * self.stack_rating)
+        # self.h2_pres_out = 31  # H2 outlet pressure (bar)
 
-        # wait time for partial startup procedure
-        self.wait_time = self.turn_on_delay
-
-        self.dt = dt  # [s] simulation time step
-        self.time = 0  # [s] total time of simulation
-        self.tau = tau  # [s] time constant https://www.sciencedirect.com/science/article/pii/S0360319911021380 section 3.4 # noqa
         self.DTSS = self.calculate_state_space()
-        self.stack_state = 0.0
 
     def run(self, P_in):
         """

@@ -8,7 +8,10 @@ This module defines a Hydrogen Electrolyzer Cell
 # * add a separate script to show results
 
 import numpy as np
+from attrs import define
 from scipy.constants import R, physical_constants, convert_temperature
+
+from .type_dec import FromDictMixin
 
 
 def electrolyzer_model(X, a, b, c, d, e, f):
@@ -29,27 +32,23 @@ F, _, _ = physical_constants["Faraday constant"]  # Faraday's constant [C/mol]
 P_ATMO, _, _ = physical_constants["standard atmosphere"]  # Pa
 
 
-class Cell:
-    def __init__(
-        self,
-        cell_area,
-    ):
-        # Standard state -> P = 1 atm, T = 298.15 K
+@define
+class Cell(FromDictMixin):
+    # Chemical Params #
+    ###################
 
-        # Chemical Params #
-        ###################
+    cell_area: float
 
-        # If we rework this class to be more generic, we can have these be specified
-        # as configuration params
+    # If we rework this class to be even more generic, we can have these be specified
+    # as configuration params
 
-        self.n = 2  # number of electrons transferred in reaction
-        # E_th_0 = 1.481  # thermoneutral voltage at standard state
-        self.gibbs = 237.24e3  # Gibbs Energy of global reaction (J/mol)
-        self.M = 2.016  # molecular weight [g/mol]
-        self.lhv = 33.33  # lower heating value of H2 [kWh/kg]
-        self.hhv = 39.41  # higher heating value of H2 [kWh/kg]
+    # number of electrons transferred in reaction
+    n: int = 2
 
-        self.cell_area = cell_area
+    gibbs: float = 237.24e3  # Gibbs Energy of global reaction (J/mol)
+    M: float = 2.016  # molecular weight [g/mol]
+    lhv: float = 33.33  # lower heating value of H2 [kWh/kg]
+    hhv: float = 39.41  # higher heating value of H2 [kWh/kg]
 
     def calc_open_circuit_voltage(self, temperature):
         """Calculates open circuit voltage using the Nernst equation."""
