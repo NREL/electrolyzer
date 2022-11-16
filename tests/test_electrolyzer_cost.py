@@ -33,6 +33,6 @@ def test_cost_lcoh():
     # calculate lcoh
     lcoh = costing.levelized_cost_of_hydrogen()
 
-    # check lcoh result
+    # check lcoh result #TODO correct expected result when model is ready
     assert lcoh == 3.0
 
