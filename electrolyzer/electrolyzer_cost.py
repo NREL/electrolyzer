@@ -1,7 +1,11 @@
 # required external packages
 import numpy as np
 
-class cost():
+#TODO 
+# - this class is missing some important elements of the electrolyzer cost as described in Singlitico 2021. 
+# The remaining elements should be added before this model can be relied upon
+
+class ElectrolyzerCost():
     """
     Keyword arguments:
     lcoe : array of length `lifetime`
