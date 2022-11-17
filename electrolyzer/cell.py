@@ -50,6 +50,12 @@ class Cell(FromDictMixin):
     lhv: float = 33.33  # lower heating value of H2 [kWh/kg]
     hhv: float = 39.41  # higher heating value of H2 [kWh/kg]
 
+    def calc_reversible_voltage(self):
+        """
+        Calculates reversible cell potential at standard state.
+        """
+        return self.gibbs / (self.n * F)
+
     def calc_open_circuit_voltage(self, temperature):
         """Calculates open circuit voltage using the Nernst equation."""
         T_K = convert_temperature([temperature], "C", "K")
@@ -77,16 +83,11 @@ class Cell(FromDictMixin):
 
         return E_cell
 
-    def calc_reversible_voltage(self):
-        """
-        Calculates reversible cell potential at standard state.
-        """
-        return self.gibbs / (self.n * F)
-
-    def calc_activation_overpotential(self, i, T_K):
+    def calc_activation_overpotential(self, i, temperature):
         """
         Calculates activation overpotential for a given current density and temperature.
         """
+        T_K = convert_temperature([temperature], "C", "K")
         # Option 1:
 
         # constants below assumed from https://www.sciencedirect.com/science/article/pii/S0360319916318341?via%3Dihub # noqa
@@ -128,10 +129,12 @@ class Cell(FromDictMixin):
 
         return V_act_a, V_act_c
 
-    def calc_ohmic_overpotential(self, i, T_K):
+    def calc_ohmic_overpotential(self, i, temperature):
         """
         Calculates Ohmic overpotential for a given current density and temperature.
         """
+        T_K = convert_temperature([temperature], "C", "K")
+
         # pulled from https://www.sciencedirect.com/science/article/pii/S0360319917309278?via%3Dihub # noqa
         # TODO: pulled from empirical data, is there a better eq?
         lambda_nafion = ((-2.89556 + (0.016 * T_K)) + 1.625) / 0.1875
@@ -182,12 +185,12 @@ class Cell(FromDictMixin):
         # V_con = ((R*T_K)/(self.n*F))*np.log((i_L/(i_L-i)))
         return 0
 
-    def calc_overpotentials(self, i, T_K):
+    def calc_overpotentials(self, i, temperature):
         """
         Calculates overpotentials for a given current density and temperature.
         """
-        V_act_a, V_act_c = self.calc_activation_overpotential(i, T_K)
-        V_ohm = self.calc_ohmic_overpotential(i, T_K)
+        V_act_a, V_act_c = self.calc_activation_overpotential(i, temperature)
+        V_ohm = self.calc_ohmic_overpotential(i, temperature)
         V_conc = self.calc_concentration_overpotential()
 
         return (V_act_a, V_act_c, V_ohm, V_conc)
@@ -197,13 +200,12 @@ class Cell(FromDictMixin):
         I [Adc]: current
         return :: V_cell [Vdc/cell]: cell voltage
         """
-        T_K = convert_temperature([temperature], "C", "K")
         i = I / self.cell_area  # current density, A/cm^2
 
         E_cell = self.calc_open_circuit_voltage(temperature)
-        V_act_a, V_act_c, V_ohm, V_conc = self.calc_overpotentials(i, T_K)
+        overpotentials = self.calc_overpotentials(i, temperature)
 
-        V_cell = E_cell + V_act_a + V_act_c + V_ohm + V_conc
+        V_cell = E_cell + sum(overpotentials)
 
         return V_cell
 
@@ -218,10 +220,10 @@ class Cell(FromDictMixin):
         """  # noqa
         f_1 = 250  # (mA2/cm4)
         f_2 = 0.996
-        i_cell = I * 1000
+        I *= 1000
 
         eta_F = (
-            ((i_cell / self.cell_area) ** 2) / (f_1 + ((i_cell / self.cell_area) ** 2))
+            ((I / self.cell_area) ** 2) / (f_1 + ((I / self.cell_area) ** 2))
         ) * f_2
 
         return eta_F

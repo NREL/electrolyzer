@@ -186,12 +186,15 @@ class Stack(FromDictMixin):
         df = pd.concat(pieces)
 
         fit_params = self.get_polarization_fits(
-            df.power_kW.values, df.current_A.values, df.temp_C.values
+            electrolyzer_model,
+            df.power_kW.values,
+            df.current_A.values,
+            df.temp_C.values,
         )
 
         return fit_params
 
-    def get_polarization_fits(self, P, I, T):
+    def get_polarization_fits(self, model, P, I, T):
         """
         P [kWdc]: power
         I [Adc]: current
@@ -203,9 +206,7 @@ class Stack(FromDictMixin):
         paramsinitial = (1.0, 1.0, 1.0, 1.0, 1.0, 1.0)
 
         # use curve_fit routine
-        fitobj, fitcov = scipy.optimize.curve_fit(
-            electrolyzer_model, (P, T), I, p0=paramsinitial
-        )
+        fitobj, fitcov = scipy.optimize.curve_fit(model, (P, T), I, p0=paramsinitial)
 
         return fitobj
 
@@ -386,9 +387,7 @@ class Stack(FromDictMixin):
         Idc [A]: stack current
         return :: Pdc [kW]: stack power
         """
-        Pdc = (
-            Idc * self.cell.calc_cell_voltage(Idc, self.temperature) * self.n_cells
-        )  # [W]
+        Pdc = Idc * self.cell.calc_cell_voltage(Idc, self.temperature) * self.n_cells
         Pdc = Pdc / 1000.0  # [kW]
 
         return Pdc

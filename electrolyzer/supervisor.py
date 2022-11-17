@@ -36,9 +36,8 @@ class Supervisor(FromDictMixin):
     # array of stack waiting status 0 for active or inactive, 1 for waiting
     waiting: NDArrayInt = field(init=False)
 
-    variable_stack: int = field(
-        init=False, default=0
-    )  # again, only for sequential controller
+    # again, only for sequential controller
+    variable_stack: int = field(init=False, default=0)
     stack_rotation: NDArrayInt = field(init=False, default=[])
     stacks_on: int = field(init=False, default=0)
     stacks_waiting: int = field(init=False, default=0)
