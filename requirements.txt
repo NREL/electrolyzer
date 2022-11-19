@@ -6,5 +6,6 @@ pandas
 matplotlib
 rainflow
 pytest
+pytest_mock
 pre-commit
 attrs

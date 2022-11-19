@@ -58,7 +58,7 @@ class Cell(FromDictMixin):
 
     def calc_open_circuit_voltage(self, temperature):
         """Calculates open circuit voltage using the Nernst equation."""
-        T_K = convert_temperature([temperature], "C", "K")
+        T_K = convert_temperature([temperature], "C", "K")[0]
         E_rev_0 = self.calc_reversible_voltage()
         p_anode = P_ATMO  # (Pa) assumed atmo
         p_cathode = P_ATMO
@@ -87,7 +87,7 @@ class Cell(FromDictMixin):
         """
         Calculates activation overpotential for a given current density and temperature.
         """
-        T_K = convert_temperature([temperature], "C", "K")
+        T_K = convert_temperature([temperature], "C", "K")[0]
         # Option 1:
 
         # constants below assumed from https://www.sciencedirect.com/science/article/pii/S0360319916318341?via%3Dihub # noqa
@@ -133,7 +133,7 @@ class Cell(FromDictMixin):
         """
         Calculates Ohmic overpotential for a given current density and temperature.
         """
-        T_K = convert_temperature([temperature], "C", "K")
+        T_K = convert_temperature([temperature], "C", "K")[0]
 
         # pulled from https://www.sciencedirect.com/science/article/pii/S0360319917309278?via%3Dihub # noqa
         # TODO: pulled from empirical data, is there a better eq?

@@ -90,7 +90,9 @@ class Stack(FromDictMixin):
         # Stack parameters #
         ####################
 
-        self.cell = Cell(self.cell_area)
+        # TODO: let's make this more seamless
+        self.cell = Cell.from_dict({"cell_area": self.cell_area})
+
         self.fit_params = self.create_polarization()
 
         # Stack dynamics #
@@ -109,7 +111,7 @@ class Stack(FromDictMixin):
         self.min_power = self.min_power or (0.1 * self.stack_rating)
         # self.h2_pres_out = 31  # H2 outlet pressure (bar)
 
-        self.DTSS = self.calculate_state_space()
+        self.DTSS = self.calc_state_space()
 
     def run(self, P_in):
         """
@@ -121,10 +123,8 @@ class Stack(FromDictMixin):
         if self.stack_on:
             power_left = P_in
 
-            I = electrolyzer_model(
-                (P_in / 1e3, self.temperature), *self.cell.fit_params
-            )
-            V = self.cell.calc_cell_voltage(I) * self.n_cells
+            I = electrolyzer_model((P_in / 1e3, self.temperature), *self.fit_params)
+            V = self.cell.calc_cell_voltage(I, self.temperature) * self.n_cells
 
             if self.include_degradation_penalty:
                 V += self.V_degradation
@@ -157,14 +157,12 @@ class Stack(FromDictMixin):
         self.hourly_counter = self.time // 3600
         if hourly_temp != self.hourly_counter:
             self.hour_change = True
-            self.voltage_signal = np.squeeze(
-                np.array(self.voltage_history, dtype="float")
-            )
+            self.voltage_signal = self.voltage_history
             self.voltage_history = []
         else:
             self.hour_change = False
 
-        self.check_status()
+        self.update_status()
 
         return H2_mfr, H2_mass_out, power_left
 
@@ -185,28 +183,16 @@ class Stack(FromDictMixin):
         self.temperature = prev_temp
         df = pd.concat(pieces)
 
-        fit_params = self.get_polarization_fits(
-            electrolyzer_model,
-            df.power_kW.values,
-            df.current_A.values,
-            df.temp_C.values,
-        )
-
-        return fit_params
-
-    def get_polarization_fits(self, model, P, I, T):
-        """
-        P [kWdc]: power
-        I [Adc]: current
-        T [degC]: temperature
-        return :: fitobj: fit object containing coefficients
-        """
-
         # assign initial values and solve a model
         paramsinitial = (1.0, 1.0, 1.0, 1.0, 1.0, 1.0)
 
         # use curve_fit routine
-        fitobj, fitcov = scipy.optimize.curve_fit(model, (P, T), I, p0=paramsinitial)
+        fitobj, fitcov = scipy.optimize.curve_fit(
+            electrolyzer_model,
+            (df.power_kW.values, df.temp_C.values),
+            df.current_A.values,
+            p0=paramsinitial,
+        )
 
         return fitobj
 
@@ -216,7 +202,7 @@ class Stack(FromDictMixin):
         T [degC]: stack temperature
         return :: Idc [A]: stack current
         """
-        Idc = electrolyzer_model((Pdc, T), *self.cell.fit_params)
+        Idc = electrolyzer_model((Pdc, T), *self.fit_params)
         return Idc
 
     def curtail_power(self, P_in):
@@ -226,7 +212,7 @@ class Stack(FromDictMixin):
         """
         return np.where(P_in > self.stack_rating_kW, self.stack_rating_kW, P_in)
 
-    def calculate_fatigue_degradation(self, voltage_signal):
+    def calc_fatigue_degradation(self, voltage_signal):
         """
         voltage_signal: the voltage signal from the last 3600 seconds
         return:: voltage_penalty: the degradation penalty
@@ -259,7 +245,7 @@ class Stack(FromDictMixin):
 
         return voltage_penalty
 
-    def calculate_steady_degradation(self):
+    def calc_steady_degradation(self):
         # https://www.researchgate.net/publication/263092194_Investigations_on_degradation_of_the_long-term_proton_exchange_membrane_water_electrolysis_stack # noqa
         # steady_deg_rate = 35.5e-6 # (microvolts / hr)
 
@@ -279,7 +265,7 @@ class Stack(FromDictMixin):
         # return steady_deg_rate*self.uptime/(60*60)
         return steady_deg_rate * self.uptime
 
-    def calculate_onoff_degradation(self):
+    def calc_onoff_degradation(self):
         # This is a made up number roughly equal to operating at steady for 1 day
         # onoff_rate = 0.006977443657142856 # (volts / cycle)
 
@@ -299,16 +285,16 @@ class Stack(FromDictMixin):
             voltage_perc = (max(self.voltage_signal) - min(self.voltage_signal)) / max(
                 self.voltage_signal
             )
-            # Don't penalize more than 5% difference in voltage
+            # Only penalize if more than 5% difference in voltage
             if voltage_perc > 0.05:
                 # I think this should be just a normal = not a +=
-                self.fatigue_history = self.calculate_fatigue_degradation(
+                self.fatigue_history = self.calc_fatigue_degradation(
                     self.voltage_signal
                 )
 
         self.V_degradation = (
-            steady_factor * self.calculate_steady_degradation()
-            + onoff_factor * self.calculate_onoff_degradation()
+            steady_factor * self.calc_steady_degradation()
+            + onoff_factor * self.calc_onoff_degradation()
             + fatigue_factor * self.fatigue_history
         )
 
@@ -333,7 +319,7 @@ class Stack(FromDictMixin):
 
         return next_state, H2_mfr_actual
 
-    def calculate_state_space(self):
+    def calc_state_space(self):
         """
         Initialize the state space matrices
         """
@@ -345,15 +331,15 @@ class Stack(FromDictMixin):
         ss_d = cont2discrete((ss_c[0], ss_c[1], ss_c[2], ss_c[3]), dt, "zoh")
         return [ss_d[0], ss_d[1], ss_d[2], ss_d[3]]
 
-    def check_status(self):
+    def update_status(self):
         # Change the stack to be truly on if it has waited long enough
         if self.stack_on:
             return
-        else:
-            if self.stack_waiting:
-                if (self.turn_on_time + self.wait_time) < self.time:
-                    self.stack_waiting = False
-                    self.stack_on = True
+
+        if self.stack_waiting:
+            if (self.turn_on_time + self.wait_time) < self.time:
+                self.stack_waiting = False
+                self.stack_on = True
 
     def turn_stack_off(self):
         if self.stack_on or self.stack_waiting:
@@ -369,18 +355,20 @@ class Stack(FromDictMixin):
             )
 
     def turn_stack_on(self):
-        if not self.stack_on:
-            # record turn on time to adjust waiting period
-            self.turn_on_time = self.time
-            self.stack_waiting = True
+        if self.stack_on:
+            return
 
-            # adjust waiting period
-            self.wait_time = np.min(
-                [
-                    self.wait_time + (self.turn_on_time - self.turn_off_time),
-                    self.turn_on_delay,
-                ]
-            )
+        # record turn on time to adjust waiting period
+        self.turn_on_time = self.time
+        self.stack_waiting = True
+
+        # adjust waiting period
+        self.wait_time = np.min(
+            [
+                self.wait_time + (self.turn_on_time - self.turn_off_time),
+                self.turn_on_delay,
+            ]
+        )
 
     def calc_stack_power(self, Idc):
         """
