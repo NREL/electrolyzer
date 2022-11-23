@@ -3,7 +3,7 @@ This module defines the Hydrogen Electrolyzer control code.
 """
 import numpy as np
 
-from electrolyzer import Electrolyzer
+from electrolyzer.electrolyzer import Electrolyzer
 
 
 class ElectrolyzerSupervisor:
@@ -68,7 +68,7 @@ class ElectrolyzerSupervisor:
         """
         if "sequential" in self.control_type:
             # TODO: current filter width hardcoded at 5 min, make an input
-            self.filter_width = round(1200 / self.dt)
+            self.filter_width = round(300 / self.dt)
 
             # TODO: decide how to initialize past_power
             self.past_power = [0]
@@ -284,7 +284,6 @@ class ElectrolyzerSupervisor:
         slope = np.mean(
             (np.mean(self.past_power[1:]) - np.mean(self.past_power[0:-1])) / self.dt
         )
-        print(slope)
 
         if stack_difference >= 0:
             # P_indv = P_indv * self.stack_rating_kW * 1000
@@ -292,6 +291,7 @@ class ElectrolyzerSupervisor:
             # for i in self.active:
             #     if i > 0:
             P_indv[self.active > 0] = self.stack_rating_kW * 1000
+            P_indv[elec_var] = left_over_power * 1000
             curtailed_wind = (stack_difference * self.stack_rating_kW) + left_over_power
             if (
                 sum(self.waiting) == 0
@@ -307,22 +307,18 @@ class ElectrolyzerSupervisor:
             curtailed_wind = 0
             P_indv = P_indv * 0
 
-            # if n_full > 0
-            # for i in self.active:
-            #     if i > 0:
-            #         P_indv[i] = self.stack_rating_kW * 1000
             P_indv[self.active > 0] = self.stack_rating_kW * 1000
-
-            # for i in self.stacks_off:
-            #     P_indv[i] = 0
-            if stack_difference > -2:
+            if stack_difference < -2:
                 if sum(self.waiting) == 0 and sum(self.active) != self.n_stacks:
                     ij = 0
                     while self.active[self.stack_rotation[ij]] > 0:
                         ij += 1
-                    on_stack = self.stack_rotation[ij]
-                    self.turn_on_stack(on_stack)
-                    P_indv[on_stack] = self.stack_rating_kW * 1000
+                    off_stack = self.stack_rotation[ij]
+                    # self.turn_on_stack(on_stack)
+                    self.turn_off_stack(off_stack)
+                    # P_indv[on_stack] = self.stack_rating_kW * 1000
+                    P_indv[off_stack] = 0
+                    P_indv[elec_var] = self.stack_rating_kW * 1000
 
             elif (
                 (
@@ -335,7 +331,8 @@ class ElectrolyzerSupervisor:
                     self.stack_rotation = self.stack_rotation[1:] + [
                         self.stack_rotation[0]
                     ]
-                    P_indv[elec_var] = 0
+                    elec_var = self.stack_rotation[0]
+                    P_indv[elec_var] = self.stack_rating_kW * 1000
                     curtailed_wind = left_over_power
             elif (
                 left_over_power < (0.1 * self.stack_rating_kW) and sum(self.waiting) > 0
