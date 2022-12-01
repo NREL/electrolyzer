@@ -111,7 +111,7 @@ class FromDictMixin:
 
         if undefined:
             raise AttributeError(
-                f"""The class defintion for {cls.__name__}
+                f"""The class definition for {cls.__name__}
                 is missing the following inputs: {undefined}"""
             )
         return cls(**kwargs)

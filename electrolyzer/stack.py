@@ -7,7 +7,7 @@ from attrs import field, define
 from scipy.signal import tf2ss, cont2discrete
 
 from .cell import Cell, electrolyzer_model
-from .type_dec import NDArrayFloat, FromDictMixin
+from .type_dec import NDArrayFloat, FromDictMixin, array_converter
 
 
 @define
@@ -50,8 +50,12 @@ class Stack(FromDictMixin):
 
     hourly_counter: float = field(init=False, default=0)
     hour_change: bool = field(init=False, default=False)
-    voltage_signal: NDArrayFloat = field(init=False, default=[])
-    voltage_history: NDArrayFloat = field(init=False, default=[])
+    voltage_signal: NDArrayFloat = field(
+        init=False, default=[], converter=array_converter
+    )
+    voltage_history: NDArrayFloat = field(
+        init=False, default=[], converter=array_converter
+    )
 
     # Stack dynamics #
     ##################
@@ -149,7 +153,7 @@ class Stack(FromDictMixin):
             H2_mass_out = 0
             V = 0  # TODO: Should we adjust this for waiting period for degradation?
 
-        self.voltage_history.append(V)
+        self.voltage_history = np.append(self.voltage_history, [V])
 
         # check if it is an hour to decide whether to calculate fatigue
         hourly_temp = self.hourly_counter
@@ -158,7 +162,7 @@ class Stack(FromDictMixin):
         if hourly_temp != self.hourly_counter:
             self.hour_change = True
             self.voltage_signal = self.voltage_history
-            self.voltage_history = []
+            self.voltage_history = np.array([])
         else:
             self.hour_change = False
 
@@ -217,6 +221,7 @@ class Stack(FromDictMixin):
         voltage_signal: the voltage signal from the last 3600 seconds
         return:: voltage_penalty: the degradation penalty
         """
+        print(voltage_signal)
         # based off degradation due to square waves of different frequencies
         # from results in https://iopscience.iop.org/article/10.1149/2.0231915je
 

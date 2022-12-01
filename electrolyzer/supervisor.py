@@ -13,15 +13,18 @@ from .type_dec import NDArrayInt, NDArrayFloat, FromDictMixin
 class Supervisor(FromDictMixin):
     # Stack parameters #
     ####################
-    n_stacks: int
-    n_cells: int
-    cell_area: float
-    temperature: float
+
+    stack: dict
+    # n_stacks: int
+    # n_cells: int
+    # cell_area: float
+    # temperature: float
     dt: float
     control_type: str
+    n_stacks: int
 
     stack_min_power: float = field(init=False)
-    stack_rating_kW = field(init=False)
+    stack_rating_kW: float = field(init=False)
     stack_rating: float = field(init=False)
 
     # Controller state #
@@ -44,6 +47,8 @@ class Supervisor(FromDictMixin):
     stacks_off: NDArrayInt = field(init=False, default=[])
     stacks_waiting_vec: NDArrayInt = field(init=False)
     deg_state: NDArrayFloat = field(init=False)
+    filter_width: int = field(init=False)
+    past_power: NDArrayFloat = field(init=False)
 
     stacks: npt.NDArray = field(init=False)
 
@@ -102,9 +107,7 @@ class Supervisor(FromDictMixin):
         # initialize electrolyzer objects
         stacks = []
         for i in range(self.n_stacks):
-            stacks.append(
-                Stack(self.n_cells, self.cell_area, self.temperature, dt=self.dt)
-            )
+            stacks.append(Stack.from_dict(self.stack))
             self.stack_rotation.append(i)
             print(
                 "electrolyzer stack ",
