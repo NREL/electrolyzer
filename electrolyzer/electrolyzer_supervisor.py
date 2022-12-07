@@ -63,7 +63,7 @@ class ElectrolyzerSupervisor:
                 wear evenly
             'sequential single wear deg': sequentially turn on electrolyzers, put all
                 degradation on single electrolyzer
-            'baseline deg': sequtntially turn on and off electrolyzers but only when you
+            'baseline deg': sequentially turn on and off electrolyzers but only when you
                 have to
         """
         if "sequential" in self.control_type:
