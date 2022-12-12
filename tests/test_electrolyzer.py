@@ -3,8 +3,9 @@
 """Tests for `electrolyzer` package."""
 
 import pytest
+import numpy as np
 
-from electrolyzer import electrolyzer
+import electrolyzer
 
 
 @pytest.fixture
