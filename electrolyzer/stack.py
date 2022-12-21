@@ -128,7 +128,7 @@ class Stack(FromDictMixin):
             power_left = P_in
 
             I = electrolyzer_model((P_in / 1e3, self.temperature), *self.fit_params)
-            V = self.cell.calc_cell_voltage(I, self.temperature) * self.n_cells
+            V = self.cell.calc_cell_voltage(I, self.temperature)
 
             if self.include_degradation_penalty:
                 V += self.V_degradation
@@ -221,7 +221,6 @@ class Stack(FromDictMixin):
         voltage_signal: the voltage signal from the last 3600 seconds
         return:: voltage_penalty: the degradation penalty
         """
-        print(voltage_signal)
         # based off degradation due to square waves of different frequencies
         # from results in https://iopscience.iop.org/article/10.1149/2.0231915je
 
