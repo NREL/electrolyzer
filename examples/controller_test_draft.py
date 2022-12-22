@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from electrolyzer.electrolyzer_supervisor import ElectrolyzerSupervisor
+from electrolyzer import Supervisor
 
 
 # import matplotlib.pyplot as plt
@@ -14,13 +14,22 @@ electrolyzer_rating = 0.5  # MW
 
 # Define Electrolyzer input dictionary
 n_stacks = round(turbine_rating / electrolyzer_rating)
+
+supervisor_dict = {}
+DT = 1
+supervisor_dict["dt"] = DT
+
 electrolyzer_dict = {}
-electrolyzer_dict["n_stacks"] = n_stacks
+supervisor_dict["n_stacks"] = n_stacks
 electrolyzer_dict["n_cells"] = 100
 electrolyzer_dict["cell_area"] = 1000
 electrolyzer_dict["stack_rating_kW"] = 500
-electrolyzer_dict["stack_input_voltage"] = 250
+electrolyzer_dict["max_current"] = 2000
+# electrolyzer_dict["stack_input_voltage"] = 250
 electrolyzer_dict["temperature"] = 60
+electrolyzer_dict["dt"] = DT
+
+supervisor_dict["stack"] = electrolyzer_dict
 
 # Test Seven Hydrogen Plant Control Strategy Options
 control_type_vec = [
@@ -46,12 +55,13 @@ power_test_signal = (base_value + variation_value * np.cos(test_signal_angle)) *
 # plt.show()
 
 for i in range(Nc):
-    # Defince controller type
+    # Define controller type
     control_type = control_type_vec[i]
+    supervisor_dict["control_type"] = control_type
     print("Controller Type: ", control_type)
 
     # Initialize Electrolyzer system
-    elec_sys = ElectrolyzerSupervisor(electrolyzer_dict, control_type, dt=1)
+    elec_sys = Supervisor.from_dict(supervisor_dict)
 
     # Define output variables
     kg_rate = np.zeros((elec_sys.n_stacks, len(power_test_signal)))

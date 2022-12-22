@@ -2,51 +2,57 @@
 This module defines the Hydrogen Electrolyzer control code.
 """
 import numpy as np
+import numpy.typing as npt
+from attrs import field, define
 
-from electrolyzer.electrolyzer import Electrolyzer
+from .stack import Stack
+from .type_dec import NDArrayInt, NDArrayFloat, FromDictMixin
 
 
-class ElectrolyzerSupervisor:
-    def __init__(self, electrolyzer_dict, control_type, dt=1):
+@define
+class Supervisor(FromDictMixin):
+    # Stack parameters #
+    ####################
 
-        # H2 farm parameters
-        self.n_stacks = electrolyzer_dict["n_stacks"]
-        self.n_cells = electrolyzer_dict["n_cells"]
-        self.cell_area = electrolyzer_dict["cell_area"]
+    stack: dict
+    # n_stacks: int
+    # n_cells: int
+    # cell_area: float
+    # temperature: float
+    dt: float
+    control_type: str
+    n_stacks: int
 
-        # TODO query electrolyzer for this
-        self.stack_rating_kW = electrolyzer_dict["stack_rating_kW"]
-        self.stack_rating = self.stack_rating_kW * 1e3
+    stack_min_power: float = field(init=False)
+    stack_rating_kW: float = field(init=False)
+    stack_rating: float = field(init=False)
 
-        # TODO query electrolyzer for this
-        self.stack_min_power = (10 / 100) * self.stack_rating
+    # Controller state #
+    ####################
 
-        # TODO remove
-        self.stack_input_voltage = electrolyzer_dict["stack_input_voltage"]
-        self.temperature = electrolyzer_dict["temperature"]
-        self.dt = dt
+    # only for sequential controller TODO: find sneakier place to initialize this
+    active_constant: NDArrayInt = field(init=False)
 
-        # Controller storage variables
+    # array of stack activation status 0 for inactive, 1 for active
+    active: NDArrayInt = field(init=False)
 
-        # array of stack activation status 0 for inactive, 1 for active
-        self.active = np.zeros(self.n_stacks)
+    # array of stack waiting status 0 for active or inactive, 1 for waiting
+    waiting: NDArrayInt = field(init=False)
 
-        # array of stack waiting status 0 for active or inactive, 1 for waiting
-        self.waiting = np.zeros(self.n_stacks)
+    # again, only for sequential controller
+    variable_stack: int = field(init=False, default=0)
+    stack_rotation: NDArrayInt = field(init=False, default=[])
+    stacks_on: int = field(init=False, default=0)
+    stacks_waiting: int = field(init=False, default=0)
+    stacks_off: NDArrayInt = field(init=False, default=[])
+    stacks_waiting_vec: NDArrayInt = field(init=False)
+    deg_state: NDArrayFloat = field(init=False)
+    filter_width: int = field(init=False)
+    past_power: NDArrayFloat = field(init=False)
 
-        # only for sequential controller TODO: find sneakier place to initialize this
-        self.active_constant = np.zeros(self.n_stacks)
-        self.variable_stack = 0  # again, only for sequential controller
-        self.stack_rotation = []
-        self.stacks_on = 0
-        self.stacks_waiting = 0
-        self.stacks_off = []
-        self.stacks_waiting_vec = np.zeros((self.n_stacks))
-        self.deg_state = np.zeros(self.n_stacks)
+    stacks: npt.NDArray = field(init=False)
 
-        self.stacks = self.create_electrolyzer_stacks()  # initialize stack objects
-
-        self.control_type = control_type
+    def __attrs_post_init__(self) -> None:
         """
         --- Current control_type Options ---
 
@@ -73,22 +79,35 @@ class ElectrolyzerSupervisor:
             # TODO: decide how to initialize past_power
             self.past_power = [0]
 
-        # delete all these eventually they are just for troubleshooting and plotting
-        self.P_indv_store = []
-        self.active_store = []
-        self.deg_state_store = []
-        self.waiting_store = []
-        self.active_actual_store = []
-        self.H2_store = []
-        self.unused_power = []
+        self.active_constant = np.zeros(self.n_stacks)
+        self.active = np.zeros(self.n_stacks)
+        self.waiting = np.zeros(self.n_stacks)
+        self.stacks_waiting_vec = np.zeros((self.n_stacks))
+        self.deg_state = np.zeros(self.n_stacks)
+        self.stacks = self.create_electrolyzer_stacks()
+
+        # Query stack info from an initialized stack. All stacks have identical
+        # ratings for now, but this may change in the future.
+        self.stack_rating_kW = self.stacks[0].stack_rating_kW
+        self.stack_rating = self.stacks[0].stack_rating
+        self.stack_min_power = self.stacks[0].min_power
+
+    # TODO: query stacks for on/off status instead of maintaining arrays
+
+    def get_stacks_waiting(self):
+        return [int(s.waiting) for s in self.stacks]
+
+    def get_stacks_on(self):
+        return [int(s.active) for s in self.stacks]
+
+    def get_stacks_off(self):
+        return [not int(s.active) for s in self.stacks]
 
     def create_electrolyzer_stacks(self):
         # initialize electrolyzer objects
         stacks = []
         for i in range(self.n_stacks):
-            stacks.append(
-                Electrolyzer(self.n_cells, self.cell_area, self.temperature, dt=self.dt)
-            )
+            stacks.append(Stack.from_dict(self.stack))
             self.stack_rotation.append(i)
             print(
                 "electrolyzer stack ",
@@ -197,14 +216,6 @@ class ElectrolyzerSupervisor:
             power_left += power_left_i
 
         curtailed_wind = max(0, power_in - (np.dot(on_or_waiting, stack_power)))
-
-        self.P_indv_store.append(stack_power)
-        self.active_store.append(np.copy(self.active))
-        self.waiting_store.append(np.copy(self.waiting))
-        self.deg_state_store.append(np.copy(self.deg_state))
-        self.active_actual_store.append(np.copy(active_actual))
-        self.H2_store.append(np.copy(H2_mass_flow_rate))
-        self.unused_power.append(np.copy(power_left))
 
         return H2_mass_out, H2_mass_flow_rate, power_left, curtailed_wind
 

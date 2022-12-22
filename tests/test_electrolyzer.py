@@ -4,8 +4,6 @@
 
 import pytest
 
-from electrolyzer import electrolyzer
-
 
 @pytest.fixture
 def response():
