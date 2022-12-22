@@ -42,6 +42,7 @@ def test_FromDictMixin_defaults():
 
 
 def test_FromDictMixin_custom():
+
     inputs = {
         "w": 0,
         "x": 1,
@@ -66,6 +67,7 @@ def test_FromDictMixin_custom():
 
 
 def test_iter_validator():
+
     # Check the correct values work
     _ = AttrsDemoClass(w=0, x=1, liststr=["a", "b"])
 

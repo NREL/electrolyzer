@@ -5,7 +5,8 @@ import numpy as np
 import numpy.typing as npt
 from attrs import field, define
 
-from electrolyzer.electrolyzer import Electrolyzer
+from .stack import Stack
+from .type_dec import NDArrayInt, NDArrayFloat, FromDictMixin
 
 
 @define
@@ -13,21 +14,16 @@ class Supervisor(FromDictMixin):
     # Stack parameters #
     ####################
 
-    dt: float
     stack: dict
-    costs: dict  # TODO: should this be connected here?
-    control: dict
-    initialize: bool = False
-    initial_power_kW: float = 0.0
-
-    name: str = field(default="electrolyzer_001")
-    description: str = field(default="A PEM electrolyzer model")
-
-    control_type: str = field(init=False, default="BaselineDeg")
-    n_stacks: int = field(init=False, default=1)
+    # n_stacks: int
+    # n_cells: int
+    # cell_area: float
+    # temperature: float
+    dt: float
+    control_type: str
+    n_stacks: int
 
     stack_min_power: float = field(init=False)
-    system_rating_MW: float = field(init=False)
     stack_rating_kW: float = field(init=False)
     stack_rating: float = field(init=False)
 
@@ -98,14 +94,6 @@ class Supervisor(FromDictMixin):
         self.stack_rating_kW = self.stacks[0].stack_rating_kW
         self.stack_rating = self.stacks[0].stack_rating
         self.stack_min_power = self.stacks[0].min_power
-        if self.initialize:
-            self.initialize_plant_stacks()
-
-        # Establish system rating
-        if "system_rating_MW" in self.control:
-            self.system_rating_MW = self.control["system_rating_MW"]
-        else:
-            self.n_stacks * self.stack_rating_kW / 1e3
 
     # TODO: query stacks for on/off status instead of maintaining arrays
 
