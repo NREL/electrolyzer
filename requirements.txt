@@ -9,3 +9,5 @@ pytest
 pytest_mock
 pre-commit
 attrs
+jsonschema
+ruamel.yaml
