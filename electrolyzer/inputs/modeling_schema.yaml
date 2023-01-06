@@ -8,7 +8,7 @@ properties:
         type: object
         default: {}
         properties:
-            verbosity:
+            verbose:
                 type: boolean
                 default: False
                 description: Prints additional outputs to screen (and to a file log in the future)
@@ -27,8 +27,8 @@ properties:
                 default: A PEM electrolyzer model
                 description: An optional description for the electrolyzer model
             dt:
-                type: integer
-                default: 1
+                type: number
+                default: 1.0
                 description: simulation time step
 
             stack:
