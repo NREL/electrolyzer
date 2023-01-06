@@ -6,7 +6,7 @@ import os
 
 import numpy as np
 
-from electrolyzer.glue_code.run_electrolyzer import run_electrolyzer
+from electrolyzer import run_electrolyzer
 
 
 fname_input_modeling = os.path.join(
