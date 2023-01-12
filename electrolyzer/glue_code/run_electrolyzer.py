@@ -10,13 +10,14 @@ import electrolyzer.inputs.validation as val
 from electrolyzer import Supervisor
 
 
-def run_electrolyzer(fname_input_modeling, power_signal):
+def run_electrolyzer(input_modeling, power_signal):
     """
     Runs an electrolyzer simulation based on a YAML configuration file and power
     signal input.
 
     Args:
-        fname_input_modeling (`str`): filepath specifying the YAML config file
+        input_modeling (`str` or `dict`): filepath specifying the YAML config
+            file, OR a dict representing a validated YAML config.
         power_signal (`list`): An array representing power input
 
     Returns:
@@ -24,8 +25,20 @@ def run_electrolyzer(fname_input_modeling, power_signal):
         `pandas.DataFrame`: a `DataFrame` representing the time series output
             for the system, including values for each electrolyzer stack
     """
-    # Validate yaml configuration
-    modeling_options = val.load_modeling_yaml(fname_input_modeling)
+    err_msg = "Model input must be a str or dict object"
+    assert isinstance(
+        input_modeling,
+        (
+            str,
+            dict,
+        ),
+    ), err_msg
+
+    if isinstance(input_modeling, str):
+        # Parse/validate yaml configuration
+        modeling_options = val.load_modeling_yaml(input_modeling)
+    else:
+        modeling_options = input_modeling
 
     # Initialize system
     elec_sys = Supervisor.from_dict(modeling_options["electrolyzer"])

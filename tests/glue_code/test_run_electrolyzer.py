@@ -2,6 +2,7 @@ import os
 
 import numpy as np
 import pandas as pd
+import pytest
 from pytest import fixture
 from numpy.testing import (
     assert_array_equal,
@@ -9,6 +10,7 @@ from numpy.testing import (
     assert_array_almost_equal,
 )
 
+import electrolyzer.inputs.validation as val
 from electrolyzer import Supervisor, run_electrolyzer
 
 
@@ -19,26 +21,37 @@ test_signal_angle = np.linspace(0, 8 * np.pi, 3600 * 8 + 10)
 base_value = (turbine_rating / 2) + 0.2
 variation_value = turbine_rating - base_value
 power_test_signal = (base_value + variation_value * np.cos(test_signal_angle)) * 1e6
+fname_input_modeling = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), "test_modeling_options.yaml"
+)
 
 
 @fixture(scope="module")
 def result():
     """Run the electrolyzer once, and use its result for subsequent tests."""
-    fname_input_modeling = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), "test_modeling_options.yaml"
-    )
-
     res = run_electrolyzer(fname_input_modeling, power_test_signal)
 
     return res
 
 
-def test_run_electrolyzer(result):
+def test_run_electrolyzer_yaml(result):
     """An electrolyzer run should return two outputs."""
     assert len(result) == 2
 
     assert isinstance(result[0], Supervisor)
     assert isinstance(result[1], pd.DataFrame)
+
+
+def test_run_electrolyzer_dict():
+    """`run_electrolyzer` should accept a filename or dict."""
+    model_input = val.load_modeling_yaml(fname_input_modeling)
+
+    run_electrolyzer(model_input, [])
+
+    bad_input = 3
+
+    with pytest.raises(AssertionError):
+        run_electrolyzer(bad_input, [])
 
 
 def test_result_df(result):
