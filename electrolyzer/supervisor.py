@@ -14,14 +14,16 @@ class Supervisor(FromDictMixin):
     # Stack parameters #
     ####################
 
-    stack: dict
-    # n_stacks: int
-    # n_cells: int
-    # cell_area: float
-    # temperature: float
     dt: float
-    control_type: str
-    n_stacks: int
+    stack: dict
+    costs: dict  # TODO: should this be connected here?
+    control: dict
+
+    name: str = field(default="electrolyzer_001")
+    description: str = field(default="A PEM electrolyzer model")
+
+    control_type: str = field(init=False, default="BaselineDeg")
+    n_stacks: int = field(init=False, default=1)
 
     stack_min_power: float = field(init=False)
     stack_rating_kW: float = field(init=False)
@@ -69,7 +71,7 @@ class Supervisor(FromDictMixin):
                 wear evenly
             'SequentialSingleWearDeg': sequentially turn on electrolyzers, put all
                 degradation on single electrolyzer
-            'BaselineDeg': sequentially turn on and off electrolyzers but only when you
+            'BaselineDeg': sequtntially turn on and off electrolyzers but only when you
                 have to
         """
         self.control_type = self.control["control_type"]
@@ -122,36 +124,6 @@ class Supervisor(FromDictMixin):
             #     "has been initialized",
             # )
         return stacks
-
-    def update_stack_status(self):
-        # Update stack status
-        for i in range(self.n_stacks):
-            if self.stacks[i].stack_on:
-                self.stacks_on += 1
-                self.active[i] = 1
-            if self.stacks[i].stack_waiting:
-                self.waiting[i] = 1
-                self.stacks_waiting_vec[i] = 1
-            else:
-                self.waiting[i] = 0
-                self.stacks_waiting_vec[i] = 0
-
-    def initialize_plant_stacks(self):
-        # TODO: decide how many stacks should be turned on
-        stack_number = round(self.initial_power_kW / self.stack_rating_kW) + 1
-        if stack_number > self.n_stacks:
-            stack_number = self.n_stacks
-        elif stack_number < 0:
-            print("Error: initial stack number cannot be less than zero")
-            return
-        elif self.initial_power_kW == 0 or self.initial_power_kW < (
-            self.stack_min_power / 1e3
-        ):
-            stack_number = 0
-
-        for i in range(stack_number):
-            self.stacks[i].stack_on = True
-        self.update_stack_status()
 
     def run_control(self, power_in):
         """
