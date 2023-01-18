@@ -15,7 +15,7 @@ Types of Contributions
 Report Bugs
 ~~~~~~~~~~~
 
-Report bugs at https://github.com/bayc/electrolyzer/issues.
+Report bugs at https://github.com/NREL/electrolyzer/issues.
 
 If you are reporting a bug, please include:
 
@@ -45,7 +45,7 @@ articles, and such.
 Submit Feedback
 ~~~~~~~~~~~~~~~
 
-The best way to send feedback is to file an issue at https://github.com/bayc/electrolyzer/issues.
+The best way to send feedback is to file an issue at https://github.com/NREL/electrolyzer/issues.
 
 If you are proposing a feature:
 
@@ -57,20 +57,20 @@ If you are proposing a feature:
 Get Started!
 ------------
 
-Ready to contribute? Here's how to set up `electrolyzer` for local development.
+Ready to contribute? Here's how to set up ``electrolyzer`` for local development.
 
 1. Fork the `electrolyzer` repo on GitHub.
 2. Clone your fork locally::
 
     $ git clone git@github.com:your_name_here/electrolyzer.git
 
-3. Install your local copy into a virtual environment using your tool of choice (this examples uses ``virtualenv``). ::
+3. Install your local copy into a virtual environment using your tool of choice (this examples uses ``venv``). ::
 
     $ cd electrolyzer
-    $ virtualenv env
+    $ python -m venv env
     $ source env/bin/activate
     $ pip install -r requirements.txt
-    $ pip install -e .[d]
+    $ pip install -e .
     $ pre-commit install
 
 4. Create a branch for local development::
@@ -82,7 +82,7 @@ Ready to contribute? Here's how to set up `electrolyzer` for local development.
 5. When you're done making changes, check that your changes pass the
    tests::
 
-    $ python setup.py test or pytest
+    $ pytest
 
 6. Commit your changes (the pre-commit hook will perform an auto-format and lint check) and push your branch to GitHub::
 

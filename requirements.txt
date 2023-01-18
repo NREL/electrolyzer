@@ -1,13 +1,16 @@
 # Requirements for Electrolyzer
 
+# Prod
 numpy
 scipy
 pandas
 matplotlib
 rainflow
-pytest
-pytest_mock
-pre-commit
 attrs
 jsonschema
 ruamel.yaml
+
+# Dev
+pytest
+pytest_mock
+pre-commit
