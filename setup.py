@@ -21,13 +21,20 @@ REQUIRED = [
     "scipy",
     "matplotlib",
     "pandas",
+    "matplotlib",
+    "rainflow",
+    "attrs",
+    "jsonschema",
+    "ruamel.yaml",
 ]
 
 # What packages are optional?
 EXTRAS = {
     "docs": {"readthedocs-sphinx-ext", "Sphinx", "sphinxcontrib-napoleon"},
-    "develop": {"pytest>=3", "pre-commit"},
+    "develop": {"pytest>=3", "pytest_mock", "pre-commit"},
 }
+
+package_data = {"electrolyzer.inputs": ["*.yaml"]}
 
 with open("README.rst") as readme_file:
     readme = readme_file.read()
@@ -35,9 +42,7 @@ with open("README.rst") as readme_file:
 with open("HISTORY.rst") as history_file:
     history = history_file.read()
 
-test_requirements = [
-    "pytest>=3",
-]
+test_requirements = ["pytest>=3", "pytest_mock"]
 
 ROOT = Path(__file__).parent
 with open(ROOT / "electrolyzer" / "version") as version_file:
@@ -57,6 +62,7 @@ setup(
     install_requires=REQUIRED,
     extras_require=EXTRAS,
     include_package_data=True,
+    package_data=package_data,
     license="Apache Software License 2.0",
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",

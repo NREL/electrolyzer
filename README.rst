@@ -9,11 +9,11 @@ Electrolyzer
 .. image:: https://readthedocs.org/projects/electrolyzer/badge/?version=latest
         :target: https://electrolyzer.readthedocs.io/en/latest/?version=latest
         :alt: Documentation Status
-        
+
 .. image:: https://github.com/NREL/electrolyzer/actions/workflows/continuous-integration-workflow.yaml/badge.svg
         :target: https://github.com/NREL/electrolyzer/actions/workflows/continuous-integration-workflow.yaml
         :alt: CI Status
-        
+
 .. image:: https://github.com/NREL/electrolyzer/actions/workflows/black.yml/badge.svg
         :target: https://github.com/NREL/electrolyzer/actions/workflows/black.yml
         :alt: Lint
@@ -27,6 +27,14 @@ Electrolyzer contains performance and cost modeling of H2 production.
 * Free software: Apache Software License 2.0
 * Documentation: https://electrolyzer.readthedocs.io.
 
+Installation
+------------
+
+``pip install git+https://github.com/NREL/electrolyzer.git``
+
+For developers:
+
+See installation instructions in ``CONTRIBUTING.rst``
 
 Features
 --------
