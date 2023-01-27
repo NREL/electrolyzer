@@ -1,9 +1,25 @@
 import copy
 
+from scipy.optimize import fsolve
+
 from electrolyzer import Stack
 
 
-def calc_rated_stack(modeling_options, step=0.01, tol=0.001, limit=10e3, in_place=True):
+def calc_rated_stack_opt(desired_rating: float, stack: Stack):
+    # initial reference point for cell area
+    cell_area_ref = 1000.0
+
+    # root finding function
+    def calc_rated_power_diff(cell_area: float):
+        stack.cell.cell_area = cell_area
+        p_rated = stack.calc_stack_power(stack.max_current)
+
+        return p_rated - desired_rating
+
+    return fsolve(calc_rated_power_diff, cell_area_ref)
+
+
+def calc_rated_stack(modeling_options: dict, in_place=True):
     """
     For a given model specification, determines a configuration that meets the
     desired stack rating (kW). Only modifies `n_cells` and `cell_area`.
@@ -14,9 +30,7 @@ def calc_rated_stack(modeling_options, step=0.01, tol=0.001, limit=10e3, in_plac
 
     Args:
         modeling_options (dict): An options Dict compatible with the modeling schema
-        limit (int, optional): Iteration limit for `cell_area` optimization.
-        step (float, optional): Step size when changing `cell_area` (cm^2)
-        tol (float, optional): Tolerance for the rated power residual (kW)
+        in_place (bool, optional): Modify in place, or return new modeling dict
 
     Returns:
         A new modeling options Dict containing adjusted stack parameters.
@@ -41,33 +55,17 @@ def calc_rated_stack(modeling_options, step=0.01, tol=0.001, limit=10e3, in_plac
             stack.n_cells = n_cells
             stack_p = stack.calc_stack_power(stack.max_current)
 
-    cell_area = stack.cell_area
-
-    count = 0
-
-    # nudge cell area up or down to minimize the residual
-    while abs(stack_p - desired_rating) > tol:
-        if count == limit:
-            print(f"Iteration limit reached: {limit}")
-            break
-
-        if stack_p < desired_rating:
-            cell_area -= step
-        else:
-            cell_area += step
-
-        stack.cell_area = cell_area
-        stack.cell.cell_area = cell_area
-        stack_p = stack.calc_stack_power(stack.max_current)
-        count += 1
+    cell_area = calc_rated_stack_opt(desired_rating, stack)
+    stack.cell.cell_area = cell_area[0]
+    stack_p = stack.calc_stack_power(stack.max_current)
 
     if in_place:
-        modeling_options["electrolyzer"]["stack"]["cell_area"] = cell_area
+        modeling_options["electrolyzer"]["stack"]["cell_area"] = cell_area[0]
         modeling_options["electrolyzer"]["stack"]["n_cells"] = n_cells
         modeling_options["electrolyzer"]["stack"]["stack_rating_kW"] = stack_p
     else:
         result = copy.deepcopy(modeling_options)
-        result["electrolyzer"]["stack"]["cell_area"] = cell_area
+        result["electrolyzer"]["stack"]["cell_area"] = cell_area[0]
         result["electrolyzer"]["stack"]["n_cells"] = n_cells
         result["electrolyzer"]["stack"]["stack_rating_kW"] = stack_p
 
