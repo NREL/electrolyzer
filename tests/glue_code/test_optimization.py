@@ -3,13 +3,22 @@ import os
 from numpy.testing import assert_almost_equal
 
 from electrolyzer.inputs import validation as val
-from electrolyzer.glue_code.optimization import calc_rated_stack
+from electrolyzer.glue_code.optimization import calc_rated_stack, calc_rated_system
 
 
 input_modeling = "./test_modeling_options.yaml"
 fname_input_modeling = os.path.join(
     os.path.dirname(os.path.realpath(__file__)), "test_modeling_options.yaml"
 )
+
+
+def test_calc_rated_system():
+    modeling_options = val.load_modeling_yaml(fname_input_modeling)
+
+    calc_rated_system(modeling_options)
+
+    assert modeling_options["electrolyzer"]["control"]["n_stacks"] == 4
+    assert modeling_options["electrolyzer"]["stack"]["stack_rating_kW"] == 500.0
 
 
 def test_calc_rated_stack():
@@ -28,27 +37,6 @@ def test_calc_rated_stack():
     )
     assert_almost_equal(
         modeling_options["electrolyzer"]["stack"]["stack_rating_kW"], 500.000, decimal=3
-    )
-
-
-def test_calc_rated_stack_new_copy():
-    """
-    Perform the same function as `test_calc_rated_stack`, but return a new dict.
-    """
-    modeling_options = val.load_modeling_yaml(fname_input_modeling)
-
-    # Update modeling dict in place
-    updated_model = calc_rated_stack(modeling_options, in_place=False)
-
-    # make sure we didn't overwrite the original
-    assert modeling_options["electrolyzer"]["stack"]["n_cells"] == 100
-
-    assert updated_model["electrolyzer"]["stack"]["n_cells"] == 108
-    assert_almost_equal(
-        updated_model["electrolyzer"]["stack"]["cell_area"], 1034.066, decimal=3
-    )
-    assert_almost_equal(
-        updated_model["electrolyzer"]["stack"]["stack_rating_kW"], 500.000, decimal=3
     )
 
 

@@ -1,11 +1,34 @@
-import copy
-
 from scipy.optimize import fsolve
 
 from electrolyzer import Stack
 
 
-def calc_rated_stack_opt(desired_rating: float, stack: Stack):
+def calc_rated_system(modeling_options: dict):
+    """
+    Calculates number of stacks and stack power rating (kW) to match a desired
+    system rating (MW).
+
+    Args:
+        modeling_options (dict): An options Dict compatible with the modeling schema
+    """
+    system_rating = (
+        modeling_options["electrolyzer"]["control"]["system_rating_MW"] * 1e3
+    )
+    stack_rating = modeling_options["electrolyzer"]["stack"]["stack_rating_kW"]
+
+    # determine number of stacks (int) closest to stack rating (float)
+    n_stacks = round(system_rating / stack_rating)
+    modeling_options["electrolyzer"]["control"]["n_stacks"] = n_stacks
+
+    # determine new desired rating to adjust parameters for
+    new_rating = system_rating / n_stacks
+    modeling_options["electrolyzer"]["stack"]["stack_rating_kW"] = new_rating
+
+    # solve for new stack rating
+    calc_rated_stack(modeling_options)
+
+
+def _solve_rated_stack(desired_rating: float, stack: Stack):
     # initial reference point for cell area
     cell_area_ref = 1000.0
 
@@ -19,7 +42,7 @@ def calc_rated_stack_opt(desired_rating: float, stack: Stack):
     return fsolve(calc_rated_power_diff, cell_area_ref)
 
 
-def calc_rated_stack(modeling_options: dict, in_place=True):
+def calc_rated_stack(modeling_options: dict):
     """
     For a given model specification, determines a configuration that meets the
     desired stack rating (kW). Only modifies `n_cells` and `cell_area`.
@@ -30,10 +53,6 @@ def calc_rated_stack(modeling_options: dict, in_place=True):
 
     Args:
         modeling_options (dict): An options Dict compatible with the modeling schema
-        in_place (bool, optional): Modify in place, or return new modeling dict
-
-    Returns:
-        A new modeling options Dict containing adjusted stack parameters.
     """
     stack = Stack.from_dict(modeling_options["electrolyzer"]["stack"])
 
@@ -55,18 +74,13 @@ def calc_rated_stack(modeling_options: dict, in_place=True):
             stack.n_cells = n_cells
             stack_p = stack.calc_stack_power(stack.max_current)
 
-    cell_area = calc_rated_stack_opt(desired_rating, stack)
+    # solve for optimal stack
+    cell_area = _solve_rated_stack(desired_rating, stack)
+
+    # recalc stack power
     stack.cell.cell_area = cell_area[0]
     stack_p = stack.calc_stack_power(stack.max_current)
 
-    if in_place:
-        modeling_options["electrolyzer"]["stack"]["cell_area"] = cell_area[0]
-        modeling_options["electrolyzer"]["stack"]["n_cells"] = n_cells
-        modeling_options["electrolyzer"]["stack"]["stack_rating_kW"] = stack_p
-    else:
-        result = copy.deepcopy(modeling_options)
-        result["electrolyzer"]["stack"]["cell_area"] = cell_area[0]
-        result["electrolyzer"]["stack"]["n_cells"] = n_cells
-        result["electrolyzer"]["stack"]["stack_rating_kW"] = stack_p
-
-        return result
+    modeling_options["electrolyzer"]["stack"]["cell_area"] = cell_area[0]
+    modeling_options["electrolyzer"]["stack"]["n_cells"] = n_cells
+    modeling_options["electrolyzer"]["stack"]["stack_rating_kW"] = stack_p

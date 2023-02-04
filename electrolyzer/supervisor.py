@@ -26,6 +26,7 @@ class Supervisor(FromDictMixin):
     n_stacks: int = field(init=False, default=1)
 
     stack_min_power: float = field(init=False)
+    system_rating_MW: float = field(init=False)
     stack_rating_kW: float = field(init=False)
     stack_rating: float = field(init=False)
 
@@ -96,6 +97,12 @@ class Supervisor(FromDictMixin):
         self.stack_rating_kW = self.stacks[0].stack_rating_kW
         self.stack_rating = self.stacks[0].stack_rating
         self.stack_min_power = self.stacks[0].min_power
+
+        # Establish system rating
+        if "system_rating_MW" in self.control:
+            self.system_rating_MW = self.control["system_rating_MW"]
+        else:
+            self.n_stacks * self.stack_rating_kW / 1e3
 
     # TODO: query stacks for on/off status instead of maintaining arrays
 

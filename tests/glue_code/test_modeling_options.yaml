@@ -13,5 +13,6 @@ electrolyzer:
         n_cells: 100
         stack_rating_kW: 500
     control:
+        system_rating_MW: 2
         n_stacks: 7
         control_type: BaselineDeg # default
