@@ -188,16 +188,39 @@ def test_calc_fatigue_degradation(stack: Stack):
 
 
 def test_calc_steady_degradation(stack: Stack):
-    """Should return a voltage penalty as a function of uptime."""
-    penalty = stack.calc_steady_degradation()
+    # """Should return a voltage penalty as a function of uptime."""
+    # penalty = stack.calc_steady_degradation()
 
-    assert penalty == 0
+    # assert penalty == 0
 
-    # penalty should increase with uptime
-    stack.uptime = 3600
-    penalty_1hr = stack.calc_steady_degradation()
+    # # penalty should increase with uptime
+    # stack.uptime = 3600
+    # penalty_1hr = stack.calc_steady_degradation()
 
-    assert penalty_1hr > penalty
+    # assert penalty_1hr > penalty
+
+    """Should return a voltage penalty as a function of voltage history"""
+    stack.stack_on = True
+
+    penalty_0s = stack.d_s
+
+    assert penalty_0s == 0
+
+    # Ramp power input from 0 to rated
+    t = 100
+    P_in = np.linspace(0, stack.stack_rating, t)
+    for p in P_in:
+        stack.run(p)
+
+    # steady degradation should be greater than 0
+    penalty_100s = stack.d_s
+
+    # steady degradation should be less than if operating at rated
+    max_voltage = stack.cell.calc_cell_voltage(stack.max_current, stack.temperature)
+    penalty_max = max_voltage * t * stack.rate_steady
+
+    assert penalty_100s > penalty_0s
+    assert penalty_100s < penalty_max
 
 
 def test_calc_onoff_degradation(stack: Stack):

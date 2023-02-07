@@ -144,6 +144,8 @@ class Stack(FromDictMixin):
         return :: H2_mass_out [kg]: hydrogen mass
         return :: power_left [W]: difference in P_in and power consumed
         """
+        self.update_status()
+
         if self.stack_on:
             power_left = P_in
 
@@ -165,13 +167,17 @@ class Stack(FromDictMixin):
         else:
             if self.stack_waiting:
                 self.uptime += self.dt
+                I = electrolyzer_model((P_in / 1e3, self.temperature), *self.fit_params)
+                V = self.cell.calc_cell_voltage(I, self.temperature)
+                self.update_temperature(I, V)
+                self.update_degradation()
                 power_left = 0
             else:
                 power_left = P_in
+                V = 0
 
             H2_mfr = 0
             H2_mass_out = 0
-            V = 0  # TODO: Should we adjust this for waiting period for degradation?
 
         self.cell_voltage = V
         self.voltage_history = np.append(self.voltage_history, [V])
@@ -186,8 +192,6 @@ class Stack(FromDictMixin):
             self.voltage_history = np.array([])
         else:
             self.hour_change = False
-
-        self.update_status()
 
         return H2_mfr, H2_mass_out, power_left
 
@@ -261,7 +265,7 @@ class Stack(FromDictMixin):
 
         d_s = self.d_s + self.rate_steady * self.cell_voltage * self.dt
 
-        self.ds = d_s
+        self.d_s = d_s
         return d_s
 
     def calc_onoff_degradation(self):
