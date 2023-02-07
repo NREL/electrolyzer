@@ -11,17 +11,17 @@ def calc_rated_system(modeling_options: dict):
     Args:
         modeling_options (dict): An options Dict compatible with the modeling schema
     """
-    system_rating = (
+    system_rating_kW = (
         modeling_options["electrolyzer"]["control"]["system_rating_MW"] * 1e3
     )
-    stack_rating = modeling_options["electrolyzer"]["stack"]["stack_rating_kW"]
+    stack_rating_kW = modeling_options["electrolyzer"]["stack"]["stack_rating_kW"]
 
     # determine number of stacks (int) closest to stack rating (float)
-    n_stacks = round(system_rating / stack_rating)
+    n_stacks = round(system_rating_kW / stack_rating_kW)
     modeling_options["electrolyzer"]["control"]["n_stacks"] = n_stacks
 
     # determine new desired rating to adjust parameters for
-    new_rating = system_rating / n_stacks
+    new_rating = system_rating_kW / n_stacks
     modeling_options["electrolyzer"]["stack"]["stack_rating_kW"] = new_rating
 
     # solve for new stack rating
@@ -29,8 +29,7 @@ def calc_rated_system(modeling_options: dict):
 
 
 def _solve_rated_stack(desired_rating: float, stack: Stack):
-    # initial reference point for cell area
-    cell_area_ref = 1000.0
+    cell_area = stack.cell.cell_area
 
     # root finding function
     def calc_rated_power_diff(cell_area: float):
@@ -39,7 +38,7 @@ def _solve_rated_stack(desired_rating: float, stack: Stack):
 
         return p_rated - desired_rating
 
-    return fsolve(calc_rated_power_diff, cell_area_ref)
+    return fsolve(calc_rated_power_diff, cell_area)
 
 
 def calc_rated_stack(modeling_options: dict):

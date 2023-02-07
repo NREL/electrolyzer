@@ -16,9 +16,9 @@ from .type_dec import FromDictMixin
 
 def electrolyzer_model(X, a, b, c, d, e, f):
     """
-    Given a power input, temperature, and set of coefficients, returns current.
-    Coefficients can be determined using non-linear least squares fit (see
-    `ElectrolyzerCell.create_polarization`).
+    Given a power input (kW), temperature (C), and set of coefficients, returns
+    current (A).  Coefficients can be determined using non-linear least squares
+    fit (see `Stack.create_polarization`).
     """
     P, T = X
     I = a * (P**2) + b * T**2 + c * P * T + d * P + e * T + f

@@ -13,6 +13,7 @@ fname_input_modeling = os.path.join(
 
 
 def test_calc_rated_system():
+    """Should be able to size a system that meets the desired rating."""
     modeling_options = val.load_modeling_yaml(fname_input_modeling)
 
     calc_rated_system(modeling_options)
@@ -49,9 +50,6 @@ def test_calc_rated_stack_lower():
 
     # set the desired stack rating, this time lower than baseline
     modeling_options["electrolyzer"]["stack"]["stack_rating_kW"] = 750
-
-    # set the maximum number of cells
-    # modeling_options["electrolyzer"]["stack"]["n_cells"] = 120
 
     calc_rated_stack(modeling_options)
 
