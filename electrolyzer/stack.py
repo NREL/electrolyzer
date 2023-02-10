@@ -277,7 +277,6 @@ class Stack(FromDictMixin):
         return d_o
 
     def update_degradation(self):
-
         if self.hour_change:  # only calculate fatigue degradation every hour
             voltage_perc = (max(self.voltage_signal) - min(self.voltage_signal)) / max(
                 self.voltage_signal
