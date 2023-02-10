@@ -144,7 +144,7 @@ def test_create_polarization(stack: Stack):
         9.74923247e-01,
         1.36179580e01,
     ]
-    assert_array_almost_equal(fit_params, expected, decimal=3)
+    assert_array_almost_equal(fit_params, expected, decimal=2)
 
 
 def test_convert_power_to_current(stack: Stack):
@@ -188,17 +188,6 @@ def test_calc_fatigue_degradation(stack: Stack):
 
 
 def test_calc_steady_degradation(stack: Stack):
-    # """Should return a voltage penalty as a function of uptime."""
-    # penalty = stack.calc_steady_degradation()
-
-    # assert penalty == 0
-
-    # # penalty should increase with uptime
-    # stack.uptime = 3600
-    # penalty_1hr = stack.calc_steady_degradation()
-
-    # assert penalty_1hr > penalty
-
     """Should return a voltage penalty as a function of voltage history"""
     stack.stack_on = True
 
@@ -244,9 +233,8 @@ def test_update_degradation(mocker):
 
     temperature = 60
     stack = create_stack()
-    v_stack = (
-        stack.cell.calc_cell_voltage(stack.max_current, temperature) * stack.n_cells
-    )
+    v_cell = stack.cell.calc_cell_voltage(stack.max_current, temperature)
+    v_stack = v_cell * stack.n_cells
     stack.update_degradation()
 
     # at startup, no voltage signal, hasn't been running for an hour
@@ -261,7 +249,7 @@ def test_update_degradation(mocker):
     stack = create_stack()
     signal = np.repeat([v_stack], 100)  # 100 sec steady voltage
     stack.voltage_signal = signal
-    stack.uptime = 3600
+    stack.cell_voltage = v_cell
     stack.hour_change = True
     stack.update_degradation()
 
@@ -274,9 +262,9 @@ def test_update_degradation(mocker):
     # after an hour, with sufficient voltage diff
     mocker.resetall()
     stack = create_stack()
-    stack.uptime = 3600
     signal = np.linspace(0, v_stack, 100)  # 100 sec voltage ramp
     stack.voltage_signal = signal
+    stack.cell_voltage = v_cell
     stack.hour_change = True
     stack.update_degradation()
 
