@@ -582,7 +582,6 @@ class Supervisor(FromDictMixin):
         p_avail -= sum(P_indv)
 
         for i in range(self.n_stacks):
-
             if p_avail >= (self.stack_rating - self.stack_min_power):
                 P_indv[i] += self.stack_rating - self.stack_min_power
                 p_avail -= self.stack_rating - self.stack_min_power
