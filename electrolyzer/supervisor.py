@@ -124,10 +124,8 @@ class Supervisor(FromDictMixin):
         return stacks
 
     def update_stack_status(self):
-
         # Update stack status
         for i in range(self.n_stacks):
-
             if self.stacks[i].stack_on:
                 self.stacks_on += 1
                 self.active[i] = 1
@@ -597,7 +595,6 @@ class Supervisor(FromDictMixin):
         p_avail -= sum(P_indv)
 
         for i in range(self.n_stacks):
-
             if p_avail >= (self.stack_rating - self.stack_min_power):
                 P_indv[i] += self.stack_rating - self.stack_min_power
                 p_avail -= self.stack_rating - self.stack_min_power
