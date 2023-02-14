@@ -11,8 +11,10 @@ from numpy.testing import (
 )
 
 import electrolyzer.inputs.validation as val
-from electrolyzer import Supervisor
-from electrolyzer.glue_code.run_electrolyzer import run_electrolyzer
+from electrolyzer import Supervisor, run_electrolyzer
+from electrolyzer.inputs.validation import load_modeling_yaml
+from electrolyzer.glue_code.optimization import calc_rated_system
+
 
 turbine_rating = 3.4  # MW
 
@@ -77,6 +79,19 @@ def test_result_df(result):
 
     # Individual kg production should sum to full
     assert_almost_equal(df["kg_rate"].sum(), sum(kg_rates.sum()))
+
+
+def test_optimize():
+    """Test the `optimize` optional param."""
+    res = run_electrolyzer(fname_input_modeling, power_test_signal, optimize=True)
+
+    # set up the same scenario, but do full run
+    options = load_modeling_yaml(fname_input_modeling)
+    calc_rated_system(options)
+    _, df = run_electrolyzer(options, power_test_signal)
+
+    assert len(res) == 1
+    assert_almost_equal(res[0], df["kg_rate"].sum())
 
 
 def test_regression(result):
