@@ -14,14 +14,16 @@ class Supervisor(FromDictMixin):
     # Stack parameters #
     ####################
 
-    stack: dict
-    # n_stacks: int
-    # n_cells: int
-    # cell_area: float
-    # temperature: float
     dt: float
-    control_type: str
-    n_stacks: int
+    stack: dict
+    costs: dict  # TODO: should this be connected here?
+    control: dict
+
+    name: str = field(default="electrolyzer_001")
+    description: str = field(default="A PEM electrolyzer model")
+
+    control_type: str = field(init=False, default="BaselineDeg")
+    n_stacks: int = field(init=False, default=1)
 
     stack_min_power: float = field(init=False)
     stack_rating_kW: float = field(init=False)
@@ -57,22 +59,25 @@ class Supervisor(FromDictMixin):
         --- Current control_type Options ---
 
         Rotation-based electrolyzer action schemes:
-            'power sharing rotation': power sharing, rotation
-            'sequential rotation': sequentially turn on electrolzyers, rotate
+            'PowerSharingRotation': power sharing, rotation
+            'SequentialRotation': sequentially turn on electrolzyers, rotate
                 electrolyzer roles based on set schedule (i.e. variable electrolyzer,
                 etc.)
 
         Degredation-based electrolyzer action schemes:
-            'even split eager deg': power sharing, eager to turn on electrolyzers
-            'even split hesitant deg': power sharing
-            'sequential even wear deg': sequentially turn on electrolzyers, distribute
+            'EvenSplitEagerDeg': power sharing, eager to turn on electrolyzers
+            'EvenSplitHesitantDeg': power sharing
+            'SequentialEvenWearDeg': sequentially turn on electrolzyers, distribute
                 wear evenly
-            'sequential single wear deg': sequentially turn on electrolyzers, put all
+            'SequentialSingleWearDeg': sequentially turn on electrolyzers, put all
                 degradation on single electrolyzer
-            'baseline deg': sequtntially turn on and off electrolyzers but only when you
+            'BaselineDeg': sequentially turn on and off electrolyzers but only when you
                 have to
         """
-        if "sequential" in self.control_type:
+        self.control_type = self.control["control_type"]
+        self.n_stacks = self.control["n_stacks"]
+
+        if "sequential" in self.control_type.lower():
             # TODO: current filter width hardcoded at 5 min, make an input
             self.filter_width = round(300 / self.dt)
 
@@ -118,7 +123,7 @@ class Supervisor(FromDictMixin):
             )
         return stacks
 
-    def control(self, power_in):
+    def run_control(self, power_in):
         """
         Inputs:
             power_in: power (W) to be consumed by the H2 farm every time step
@@ -132,23 +137,23 @@ class Supervisor(FromDictMixin):
         """
 
         # calculate stack power distribution
-        if self.control_type == "power sharing rotation":
+        if self.control_type == "PowerSharingRotation":
             stack_power, curtailed_wind = self.power_sharing_rotation(power_in)
-        elif self.control_type == "sequential rotation":
+        elif self.control_type == "SequentialRotation":
             stack_power, curtailed_wind = self.sequential_rotation(power_in)
-        elif self.control_type == "even split eager deg":
+        elif self.control_type == "EvenSplitEagerDeg":
             stack_power = self.distribute_power_equal_eager(power_in)
             curtailed_wind = 0
-        elif self.control_type == "even split hesitant deg":
+        elif self.control_type == "EvenSplitHesitantDeg":
             stack_power = self.distribute_power_equal_hesitant(power_in)
             curtailed_wind = 0
-        elif self.control_type == "sequential even wear deg":
+        elif self.control_type == "SequentialEvenWearDeg":
             stack_power = self.distribute_power_sequential_even_wear(power_in)
             curtailed_wind = 0
-        elif self.control_type == "sequential single wear deg":
+        elif self.control_type == "SequentialSingleWearDeg":
             stack_power = self.distribute_power_sequential_single_wear(power_in)
             curtailed_wind = 0
-        elif self.control_type == "baseline deg":
+        elif self.control_type == "BaselineDeg":
             stack_power = self.baseline_controller(power_in)
             curtailed_wind = 0
 

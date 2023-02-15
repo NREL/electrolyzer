@@ -11,7 +11,8 @@ from numpy.testing import (
 )
 
 import electrolyzer.inputs.validation as val
-from electrolyzer import Supervisor, run_electrolyzer
+from electrolyzer import Supervisor
+from electrolyzer.glue_code.run_electrolyzer import run_electrolyzer
 
 
 turbine_rating = 3.4  # MW
