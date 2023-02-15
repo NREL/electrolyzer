@@ -1,11 +1,16 @@
 # Requirements for Electrolyzer
 
+# Prod
 numpy
 scipy
 pandas
 matplotlib
 rainflow
+attrs
+jsonschema
+ruamel.yaml
+
+# Dev
 pytest
 pytest_mock
 pre-commit
-attrs
