@@ -71,7 +71,7 @@ class Supervisor(FromDictMixin):
                 wear evenly
             'SequentialSingleWearDeg': sequentially turn on electrolyzers, put all
                 degradation on single electrolyzer
-            'BaselineDeg': sequtntially turn on and off electrolyzers but only when you
+            'BaselineDeg': sequentially turn on and off electrolyzers but only when you
                 have to
         """
         self.control_type = self.control["control_type"]
