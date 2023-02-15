@@ -122,13 +122,14 @@ class Supervisor(FromDictMixin):
         for i in range(self.n_stacks):
             stacks.append(Stack.from_dict(self.stack))
             self.stack_rotation.append(i)
-            print(
-                "electrolyzer stack ",
-                i + 1,
-                "out of ",
-                self.n_stacks,
-                "has been initialized",
-            )
+            # TODO: replace with proper logging
+            # print(
+            #     "electrolyzer stack ",
+            #     i + 1,
+            #     "out of ",
+            #     self.n_stacks,
+            #     "has been initialized",
+            # )
         return stacks
 
     def update_stack_status(self):

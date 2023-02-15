@@ -27,6 +27,7 @@ def _run_electrolyzer_full(modeling_options, power_signal):
 
     # Run electrolyzer simulation
     for i in range(len(power_signal)):
+        # TODO: replace with proper logging
         # if (i % 1000) == 0:
         #     print('Progress', i)
         # print(i)
@@ -44,19 +45,31 @@ def _run_electrolyzer_full(modeling_options, power_signal):
             uptime[j, i] = elec_sys.stacks[j].uptime
 
     # Collect results into a DataFrame
-    results_df = pd.DataFrame(index=range(len(power_signal)))
+    results_df = pd.DataFrame(
+        {
+            "power_signal": power_signal,
+            "curtailment": curtailment,
+            "kg_rate": tot_kg,
+        }
+    )
 
-    results_df["power_signal"] = power_signal
-    results_df["curtailment"] = curtailment
-    results_df["kg_rate"] = tot_kg
+    # for efficiency reasons, create a df for each stack, then concat all at the end
+    stack_dfs = []
 
     for i, stack in enumerate(elec_sys.stacks):
         id = i + 1
-        results_df[f"stack_{id}_deg"] = degradation[i, :]
-        results_df[f"stack_{id}_fatigue"] = stack.fatigue_history
-        results_df[f"stack_{id}_cycles"] = cycles[i, :]
-        results_df[f"stack_{id}_uptime"] = uptime[i, :]
-        results_df[f"stack_{id}_kg_rate"] = kg_rate[i, :]
+        stack_df = pd.DataFrame(
+            {
+                f"stack_{id}_deg": degradation[i, :],
+                f"stack_{id}_fatigue": stack.fatigue_history,
+                f"stack_{id}_cycles": cycles[i, :],
+                f"stack_{id}_uptime": uptime[i, :],
+                f"stack_{id}_kg_rate": kg_rate[i, :],
+            }
+        )
+        stack_dfs.append(stack_df)
+
+    results_df = pd.concat([results_df, *stack_dfs], axis=1)
 
     return elec_sys, results_df
 
@@ -73,6 +86,7 @@ def _run_electrolyzer_opt(modeling_options, power_signal):
 
     # Run electrolyzer simulation
     for i in range(len(power_signal)):
+        # TODO: replace with proper logging
         # if (i % 1000) == 0:
         #     print('Progress', i)
         # print(i)
