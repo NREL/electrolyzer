@@ -33,13 +33,13 @@ supervisor_dict["stack"] = electrolyzer_dict
 
 # Test Seven Hydrogen Plant Control Strategy Options
 control_type_vec = [
-    "baseline deg",
-    "power sharing rotation",
-    "sequential rotation",
-    "even split eager deg",
-    "even split hesitant deg",
-    "sequential even wear deg",
-    "sequential single wear deg",
+    "BaselineDeg",
+    "PowerSharingRotation",
+    "SequentialRotation",
+    "EvenSplitEagerDeg",
+    "EvenSplitHesitantDeg",
+    "SequentialEvenWearDeg",
+    "SequentialSingleWearDeg",
 ]
 Nc = len(control_type_vec)
 
