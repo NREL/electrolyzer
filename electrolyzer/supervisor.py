@@ -71,7 +71,7 @@ class Supervisor(FromDictMixin):
                 wear evenly
             'SequentialSingleWearDeg': sequentially turn on electrolyzers, put all
                 degradation on single electrolyzer
-            'BaselineDeg': sequentially turn on and off electrolyzers but only when you
+            'BaselineDeg': sequtntially turn on and off electrolyzers but only when you
                 have to
         """
         self.control_type = self.control["control_type"]
@@ -111,6 +111,7 @@ class Supervisor(FromDictMixin):
     def create_electrolyzer_stacks(self):
         # initialize electrolyzer objects
         stacks = []
+        self.stack["dt"] = self.dt
         for i in range(self.n_stacks):
             stacks.append(Stack.from_dict(self.stack))
             self.stack_rotation.append(i)
