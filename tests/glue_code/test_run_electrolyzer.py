@@ -89,7 +89,6 @@ def test_regression(result):
     # Test total kg H2 produced
     assert_almost_equal(df["kg_rate"].sum(), 222.87991746974592, decimal=4)
 
-
     # Test degradation state of stacks
     degradation = df[[col for col in df if "deg" in col]]
     assert_array_almost_equal(
