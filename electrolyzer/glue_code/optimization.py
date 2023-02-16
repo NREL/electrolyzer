@@ -1,3 +1,5 @@
+import copy
+
 from scipy.optimize import fsolve
 
 from electrolyzer import Stack
@@ -11,21 +13,23 @@ def calc_rated_system(modeling_options: dict):
     Args:
         modeling_options (dict): An options Dict compatible with the modeling schema
     """
-    system_rating_kW = (
-        modeling_options["electrolyzer"]["control"]["system_rating_MW"] * 1e3
-    )
-    stack_rating_kW = modeling_options["electrolyzer"]["stack"]["stack_rating_kW"]
+    options = copy.deepcopy(modeling_options)
+
+    system_rating_kW = options["electrolyzer"]["control"]["system_rating_MW"] * 1e3
+    stack_rating_kW = options["electrolyzer"]["stack"]["stack_rating_kW"]
 
     # determine number of stacks (int) closest to stack rating (float)
     n_stacks = round(system_rating_kW / stack_rating_kW)
-    modeling_options["electrolyzer"]["control"]["n_stacks"] = n_stacks
+    options["electrolyzer"]["control"]["n_stacks"] = n_stacks
 
     # determine new desired rating to adjust parameters for
     new_rating = system_rating_kW / n_stacks
-    modeling_options["electrolyzer"]["stack"]["stack_rating_kW"] = new_rating
+    options["electrolyzer"]["stack"]["stack_rating_kW"] = new_rating
 
-    # solve for new stack rating
-    calc_rated_stack(modeling_options)
+    # solve for new stack rating (modifies dict)
+    calc_rated_stack(options)
+
+    return options
 
 
 def _solve_rated_stack(desired_rating: float, stack: Stack):
@@ -61,17 +65,29 @@ def calc_rated_stack(modeling_options: dict):
     stack_p = stack.calc_stack_power(stack.max_current)
     desired_rating = stack.stack_rating_kW
 
+    stack_p_prev = stack_p
     # nudge cell count up or down until it overshoots
     if stack_p > desired_rating:
         while stack_p > desired_rating:
             n_cells -= 1
             stack.n_cells = n_cells
+            stack_p_prev = stack_p
             stack_p = stack.calc_stack_power(stack.max_current)
+
+        # choose n_cells with closest resulting power rating
+        if abs(desired_rating - stack_p_prev) < abs(desired_rating - stack_p):
+            stack.n_cells += 1
+
     elif stack_p < desired_rating:
         while stack_p < desired_rating:
             n_cells += 1
             stack.n_cells = n_cells
+            stack_p_prev = stack_p
             stack_p = stack.calc_stack_power(stack.max_current)
+
+        # choose n_cells with closest resulting power rating
+        if abs(desired_rating - stack_p_prev) < abs(desired_rating - stack_p):
+            stack.n_cells -= 1
 
     # solve for optimal stack
     cell_area = _solve_rated_stack(desired_rating, stack)

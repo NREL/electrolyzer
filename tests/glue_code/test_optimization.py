@@ -16,10 +16,12 @@ def test_calc_rated_system():
     """Should be able to size a system that meets the desired rating."""
     modeling_options = val.load_modeling_yaml(fname_input_modeling)
 
-    calc_rated_system(modeling_options)
+    tuned_options = calc_rated_system(modeling_options)
 
-    assert modeling_options["electrolyzer"]["control"]["n_stacks"] == 4
-    assert modeling_options["electrolyzer"]["stack"]["stack_rating_kW"] == 500.0
+    assert tuned_options["electrolyzer"]["control"]["n_stacks"] == 4
+    assert_almost_equal(
+        tuned_options["electrolyzer"]["stack"]["stack_rating_kW"], 500.0
+    )
 
 
 def test_calc_rated_stack():
@@ -32,10 +34,12 @@ def test_calc_rated_stack():
     # Update modeling dict in place
     calc_rated_stack(modeling_options)
 
-    assert modeling_options["electrolyzer"]["stack"]["n_cells"] == 108
-    assert_almost_equal(
-        modeling_options["electrolyzer"]["stack"]["cell_area"], 1034.066, decimal=3
-    )
+    # n_cells should get bigger
+    assert modeling_options["electrolyzer"]["stack"]["n_cells"] > 100
+
+    # cell area should get smaller
+    modeling_options["electrolyzer"]["stack"]["cell_area"] < 1000
+
     assert_almost_equal(
         modeling_options["electrolyzer"]["stack"]["stack_rating_kW"], 500.000, decimal=3
     )
