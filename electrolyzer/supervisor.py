@@ -125,6 +125,19 @@ class Supervisor(FromDictMixin):
             # )
         return stacks
 
+    def update_stack_status(self):
+        # Update stack status
+        for i in range(self.n_stacks):
+            if self.stacks[i].stack_on:
+                self.stacks_on += 1
+                self.active[i] = 1
+            if self.stacks[i].stack_waiting:
+                self.waiting[i] = 1
+                self.stacks_waiting_vec[i] = 1
+            else:
+                self.waiting[i] = 0
+                self.stacks_waiting_vec[i] = 0
+
     def run_control(self, power_in):
         """
         Inputs:
