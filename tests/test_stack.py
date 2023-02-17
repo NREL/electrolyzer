@@ -12,6 +12,7 @@ def create_stack():
         "cell_area": 1000,
         "temperature": 60,
         "max_current": 2000,
+        "dt": 1,
     }
     return Stack.from_dict(stack_dict)
 
@@ -36,6 +37,7 @@ def test_init(mocker):
         "temperature": 60,
         "max_current": 2000,
         "stack_rating_kW": 750,
+        "dt": 1,
     }
 
     stack = Stack.from_dict(stack_dict)
