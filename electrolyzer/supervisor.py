@@ -18,6 +18,8 @@ class Supervisor(FromDictMixin):
     stack: dict
     costs: dict  # TODO: should this be connected here?
     control: dict
+    initialize: bool = False
+    initial_power_kW: float = None
 
     name: str = field(default="electrolyzer_001")
     description: str = field(default="A PEM electrolyzer model")
@@ -96,6 +98,8 @@ class Supervisor(FromDictMixin):
         self.stack_rating_kW = self.stacks[0].stack_rating_kW
         self.stack_rating = self.stacks[0].stack_rating
         self.stack_min_power = self.stacks[0].min_power
+        if self.initialize:
+            self.initialize_plant_stacks()
 
     # TODO: query stacks for on/off status instead of maintaining arrays
 
@@ -111,6 +115,7 @@ class Supervisor(FromDictMixin):
     def create_electrolyzer_stacks(self):
         # initialize electrolyzer objects
         stacks = []
+        self.stack["dt"] = self.dt
         for i in range(self.n_stacks):
             stacks.append(Stack.from_dict(self.stack))
             self.stack_rotation.append(i)
@@ -135,6 +140,21 @@ class Supervisor(FromDictMixin):
             else:
                 self.waiting[i] = 0
                 self.stacks_waiting_vec[i] = 0
+
+    def initialize_plant_stacks(self):
+        # TODO: decide how many stacks should be turned on
+        stack_number = round(self.initial_power_kW / self.stack_rating_kW) + 1
+        if stack_number > self.n_stacks:
+            stack_number = int(self.n_stacks)
+        elif stack_number < 0:
+            print("Error: initial stack number cannot be less than zero")
+            return
+        elif self.initial_power_kW == 0:
+            stack_number = 0
+
+        for i in range(stack_number):
+            self.stacks[i].stack_on = True
+        self.update_stack_status()
 
     def run_control(self, power_in):
         """
@@ -179,7 +199,7 @@ class Supervisor(FromDictMixin):
                     on_or_waiting[i] = 1
 
             # which stacks the controller thinks are on and which are actually on
-            mismatch = self.active - on_or_waiting
+            mismatch = (self.active + self.waiting) - on_or_waiting
 
             for i in range(len(mismatch)):
                 # this means the controller wants an electrolyzer on and that
