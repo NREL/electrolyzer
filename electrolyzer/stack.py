@@ -18,6 +18,7 @@ class Stack(FromDictMixin):
     max_current: float
     temperature: float
     n_cells: int
+    dt: float
 
     min_power: float = None
     stack_rating_kW: float = None
@@ -96,8 +97,8 @@ class Stack(FromDictMixin):
     # wait time for partial startup procedure (set in __attrs_post_init)
     wait_time: float = field(init=False)
 
-    # [s] simulation time step
-    dt: float = 1
+    # # [s] simulation time step
+    # dt: float = 1
 
     # [s] total time of simulation
     time: float = field(init=False, default=0)
