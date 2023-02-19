@@ -762,9 +762,7 @@ class Supervisor(FromDictMixin):
                     P_i[i] += P_indv
                     P_avail -= P_indv
         else:
-
             # permute
-
             """the way it is right now, the last electrolzyer in the active list will
             always be the variable one. If we want to use a different one then we can
             implement a permutation of the active array, run the forloop below then
