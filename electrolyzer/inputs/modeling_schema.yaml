@@ -75,9 +75,35 @@ properties:
                         description: Number of electrolyzer Stacks to run in simulation
                     control_type:
                         type: string
-                        enum: [PowerSharingRotation, SequentialRotation, EvenSplitEagerDeg, EvenSplitHesitantDeg, SequentialEvenWearDeg, SequentialSingleWearDeg, BaselineDeg]
+                        enum: [PowerSharingRotation, SequentialRotation, EvenSplitEagerDeg, EvenSplitHesitantDeg, SequentialEvenWearDeg, SequentialSingleWearDeg, BaselineDeg, Decision_ctrl]
                         default: BaselineDeg
                         description:
+
+                policy:
+                    type: object
+                    default: {}
+                    description: Set of control policies for Decision_ctrl only
+                    properties:
+                        eager_on:
+                            type: boolean
+                            default: False
+                            description: Whether the supervisor is eager or hesitant to switch stacks on
+                        eager_off:
+                            type: boolean
+                            default: False
+                            description: Whether the supervisor is eager or hesitant to switch stacks off
+                        sequential:
+                            type: boolean
+                            default: False
+                            description: Sequential or degradation-based stack switching order
+                        even_dist:
+                            type: boolean
+                            default: False
+                            description: Whether the input power is divided evenly amongst the stacks or variably
+                        baseline:
+                            type: boolean
+                            default: True
+                            description: Baseline descision controller is to treat all stacks as a single large capacity electrolzyer
 
             costs:
                 type: object

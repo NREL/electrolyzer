@@ -23,6 +23,14 @@ class Supervisor(FromDictMixin):
     description: str = field(default="A PEM electrolyzer model")
 
     control_type: str = field(init=False, default="BaselineDeg")
+
+    # decision-based controller policies
+    eager_on: bool = field(init=False, default=False)
+    eager_off: bool = field(init=False, default=False)
+    sequential: bool = field(init=False, default=False)
+    even_dist: bool = field(init=False, default=False)
+    baseline: bool = field(init=False, default=True)
+
     n_stacks: int = field(init=False, default=1)
 
     stack_min_power: float = field(init=False)
@@ -73,6 +81,21 @@ class Supervisor(FromDictMixin):
                 degradation on single electrolyzer
             'BaselineDeg': sequentially turn on and off electrolyzers but only when you
                 have to
+
+        Decision_ctrl controller action schemes:
+            'BBBB': baseline controller - one big stack
+            'HHDV': hesitant on, hesitant off, degradation order, variable power dist
+            'HHDE': hesitant on, hesitant off, degradation order, even power dist
+            'HHOV': hesitant on, hesitant off, rotation order, variable power dist
+            'HHOE': hesitant on, hesitant off, rotation order, even power dist
+            'HEDV': hesitant on, eager off, degradation order, variable power dist
+            'HEDE': hesitant on, eager off, degradation order, even power dist
+            'HEOV': hesitant on, eager off, rotation order, variable power dist
+            'HEOE': hesitant on, eager off, rotation order, even power dist
+            'EHDV': eager on, hesitant off, degradation order, variable power dist
+            'EHDE': eager on, hesitant off, degradation order, even power dist
+            'EHOV': eager on, hesitant off, rotation order, variable power dist
+            'EHOE': eager on, hesitant off, rotation order, even power dist
         """
         self.control_type = self.control["control_type"]
         self.n_stacks = self.control["n_stacks"]
@@ -83,6 +106,13 @@ class Supervisor(FromDictMixin):
 
             # TODO: decide how to initialize past_power
             self.past_power = [0]
+
+        if "Decision" in self.control_type:
+            self.eager_on = self.control["policy"]["eager_on"]
+            self.eager_off = self.control["policy"]["eager_off"]
+            self.sequential = self.control["policy"]["sequential"]
+            self.even_dist = self.control["policy"]["even_distribution"]
+            self.baseline = self.control["policy"]["baseline"]
 
         self.active_constant = np.zeros(self.n_stacks)
         self.active = np.zeros(self.n_stacks)
@@ -170,11 +200,14 @@ class Supervisor(FromDictMixin):
         elif self.control_type == "BaselineDeg":
             stack_power = self.baseline_controller(power_in)
             curtailed_wind = 0
+        elif self.control_type == "Decision_ctrl":
+            stack_power = self.decision_ctrl(power_in)
+            curtailed_wind = 0
 
         # Query stacks for their status and turn them on or off as needed
         on_or_waiting = np.zeros(self.n_stacks)
 
-        if "deg" in self.control_type:
+        if ("deg" in self.control_type) or ("Decision" in self.control_type):
             for i in range(self.n_stacks):
                 if self.stacks[i].stack_on or self.stacks[i].stack_waiting:
                     on_or_waiting[i] = 1
@@ -408,12 +441,10 @@ class Supervisor(FromDictMixin):
             pass  # do not need to turn on or off
         elif n_active > sum(self.active):
             diff = int(n_active - sum(self.active))
-            self.active += self.get_healthiest_inactive(
-                self.active, self.deg_state, diff
-            )
+            self.active += self.get_healthiest_inactive(diff)
         elif n_active < sum(self.active):
             diff = int(sum(self.active) - n_active)
-            self.active *= self.get_illest_active(self.active, self.deg_state, diff)
+            self.active *= self.get_illest_active(diff)
 
         P_indv = P_i * self.active
 
@@ -451,13 +482,11 @@ class Supervisor(FromDictMixin):
             # the next ones to turn on but only pick the healthiest from the ones
             # that are turned off
             diff = int(n_active - sum(self.active))
-            self.active += self.get_healthiest_inactive(
-                self.active, self.deg_state, diff
-            )
+            self.active += self.get_healthiest_inactive(diff)
 
         elif n_active < sum(self.active):
             diff = int(sum(self.active) - n_active)  # need to turn off this many
-            self.active *= self.get_illest_active(self.active, self.deg_state, diff)
+            self.active *= self.get_illest_active(diff)
 
         P_indv = P_i * self.active
 
@@ -476,9 +505,7 @@ class Supervisor(FromDictMixin):
         diff = int(n_active - sum(self.active))
 
         if n_active > sum(self.active):
-            stacks_to_turn_on = self.get_healthiest_inactive(
-                self.active, self.deg_state, diff
-            )
+            stacks_to_turn_on = self.get_healthiest_inactive(diff)
             # for robustitude, this index should be [0][0] but it throws error so
             # come back to this
             self.variable_stack = np.nonzero(stacks_to_turn_on)[0][0]
@@ -489,9 +516,7 @@ class Supervisor(FromDictMixin):
             self.active[self.variable_stack] = 0
 
             # need this to be get illest constant
-            stacks_to_turn_off = self.get_illest_active(
-                self.active_constant, self.deg_state, np.abs(diff)
-            )
+            stacks_to_turn_off = self.get_illest_active(np.abs(diff))
 
             # these are the illest stacks from constant - the illest of these should
             # turn into variable
@@ -529,9 +554,7 @@ class Supervisor(FromDictMixin):
         diff = int(n_active - sum(self.active))
 
         if n_active > sum(self.active):
-            stacks_to_turn_on = self.get_healthiest_inactive(
-                self.active, self.deg_state, diff
-            )
+            stacks_to_turn_on = self.get_healthiest_inactive(diff)
 
             # for robustitude, this index should be [0][0] but it throws error so
             # come back to this
@@ -544,9 +567,7 @@ class Supervisor(FromDictMixin):
             # self.active[self.variable_stack] = 0
 
             # need this to be get illest constant
-            stacks_to_turn_off = self.get_illest_active(
-                self.active_constant, self.deg_state, np.abs(diff)
-            )
+            stacks_to_turn_off = self.get_illest_active(np.abs(diff))
 
             # these are the illest stacks from constant - the illest of
             # these should turn into variabl
@@ -605,6 +626,162 @@ class Supervisor(FromDictMixin):
 
         return P_indv
 
+    def decision_ctrl(self, power_in):
+        num_on, num_off = self.check_turn_on_off(power_in)
+        if num_on > 0:
+            stacks_to_activate = self.get_next_stack_on(num_on)
+            self.active += stacks_to_activate
+        if num_off > 0:
+            stacks_to_deactivate = self.get_next_stack_off(num_off)
+            self.active *= stacks_to_deactivate
+
+        P_i = self.distribute_power(power_in)
+        return P_i
+
+    def check_turn_on_off(self, P_avail):
+        max_num_active = min(
+            [self.n_stacks, int(np.floor(P_avail / self.stack_min_power))]
+        )  # maximum possible number of electrolzyers running
+        min_num_active = min(
+            [
+                self.n_stacks,
+                int(
+                    (P_avail > self.stack_min_power)
+                    * np.ceil(P_avail / self.stack_rating)
+                ),
+            ]
+        )  # minimum possible number of electrolyzers that can use all of P_avail
+
+        n_active = sum(self.active)
+        # self.maxmin.append([min_num_active, max_num_active, n_active])
+
+        num_on = 0
+        num_off = 0
+
+        if self.eager_on & (not self.eager_off):
+            # Option 1: Eager on, hesitant off
+            if n_active > max_num_active:  # have the option       to turn off stacks
+                num_on = 0
+                num_off = max([0, n_active - max_num_active])
+            elif n_active < max_num_active:  # have the option    to turn on stacks
+                num_on = max([0, max_num_active - n_active])
+                num_off = 0
+
+        elif (not self.eager_on) & (not self.eager_off):
+            # Option 2: Hesitant on, hesitant off
+            if n_active > max_num_active:  # have the option       to turn off stacks
+                num_on = 0
+                num_off = max([0, n_active - max_num_active])
+            elif n_active < min_num_active:  # have no choice but    to turn on stacks
+                num_on = max([0, min_num_active - n_active])
+                num_off = 0
+
+        elif (not self.eager_on) & self.eager_off:
+            # Option 3: Hesitant on, eager off
+            if n_active > min_num_active:  # have no choice but     to turn off stacks
+                num_on = 0
+                num_off = max([0, n_active - min_num_active])
+            elif n_active < min_num_active:  # have no choice but    to turn on stacks
+                num_on = max([0, min_num_active - n_active])
+                num_off = 0
+
+            # Option 4: eager on, eager off has very frequent switching - not useful
+
+        if self.baseline:
+            if P_avail > self.n_stacks * self.stack_min_power:
+                num_on = max([0, self.n_stacks - n_active])
+                num_off = 0
+            elif P_avail < self.n_stacks * self.stack_min_power:
+                num_on = 0
+                num_off = min([self.n_stacks, n_active])
+
+        return num_on, num_off
+
+    def get_next_stack_on(self, n_activate):
+        if self.baseline:
+            if n_activate > 0:
+                stacks_to_activate = np.ones_like(self.active)
+        else:
+            if self.sequential:
+                stacks_to_activate = np.zeros_like(self.active)
+                activate_inds = np.arange(
+                    sum(self.active), sum(self.active) + n_activate
+                ).astype(int)
+                for i in activate_inds:
+                    stacks_to_activate[i] = 1
+            else:
+                stacks_to_activate = self.get_healthiest_inactive(n_activate)
+
+        return stacks_to_activate
+
+    def get_next_stack_off(self, n_deactivate):
+        if self.baseline:
+            if n_deactivate > 0:
+                stacks_to_deactivate = np.zeros_like(self.active)
+        else:
+            if self.sequential:
+                stacks_to_deactivate = np.ones_like(self.active)
+                deactivate_inds = np.arange(
+                    sum(self.active) - n_deactivate, sum(self.active)
+                ).astype(int)
+                for i in deactivate_inds:
+                    stacks_to_deactivate[i] = 0
+            else:
+                stacks_to_deactivate = self.get_illest_active(n_deactivate)
+
+        return stacks_to_deactivate
+
+    def get_healthiest_inactive(self, n_activate):
+        inactive = np.nonzero(self.active - 1)[0]
+        ds = self.deg_state[inactive]
+        deg_inds = np.argsort(ds)
+        stacks_to_activate = np.zeros_like(self.active)
+        stacks_to_activate[inactive[deg_inds[0 : int(n_activate)]]] = 1
+        return stacks_to_activate
+
+    def get_illest_active(self, n_deactivate):
+        active_currently = np.nonzero(self.active)[0]
+        ds = self.deg_state[active_currently]
+        deg_inds = np.flip(np.argsort(ds))
+        stacks_to_deactivate = np.ones_like(self.active)
+        stacks_to_deactivate[active_currently[deg_inds[0 : int(n_deactivate)]]] = 0
+        return stacks_to_deactivate
+
+    def distribute_power(self, P_avail):
+        P_i = np.zeros_like(self.active)
+
+        for i, a in enumerate(self.active):
+            if a:
+                P_i[i] += self.stack_min_power
+                P_avail -= self.stack_min_power
+
+        if self.even_dist & (sum(self.active) > 0):
+            P_indv = P_avail / sum(self.active)  # check this if power gets too large
+            for i, a in enumerate(self.active):
+                if a:
+                    P_i[i] += P_indv
+                    P_avail -= P_indv
+        else:
+
+            # permute
+
+            """the way it is right now, the last electrolzyer in the active list will
+            always be the variable one. If we want to use a different one then we can
+            implement a permutation of the active array, run the forloop below then
+            perform the inverse permutation on P_i afterwards"""
+
+            for i, a in enumerate(self.active):
+                if a:
+                    if P_avail >= (self.stack_rating - self.stack_min_power):
+                        P_i[i] += self.stack_rating - self.stack_min_power
+                        P_avail -= self.stack_rating - self.stack_min_power
+                    elif P_avail >= 0:
+                        P_i[i] += P_avail
+                        P_avail -= P_avail
+            # unpermute
+
+        return P_i
+
     def turn_off_stack(self, off_stack):
         # print('turn off stack')
 
@@ -625,25 +802,25 @@ class Supervisor(FromDictMixin):
         self.waiting[on_stack] = 1
         # print(on_stack)
 
-    def get_healthiest_inactive(self, active, deg_state, n_activate):
-        # TODO remove the arrays passed to this method since they are stored in
-        # self already
-        inact = np.nonzero(active - 1)[0]
-        ds = deg_state[inact]
-        deg_inds = np.argsort(ds)
-        temp = np.zeros_like(active)
-        temp[inact[deg_inds[0:n_activate]]] = 1
-        return temp  # active + temp will turn on the stacks at 1s
+    # def get_healthiest_inactive(self, active, deg_state, n_activate):
+    #     # TODO remove the arrays passed to this method since they are stored in
+    #     # self already
+    #     inact = np.nonzero(active - 1)[0]
+    #     ds = deg_state[inact]
+    #     deg_inds = np.argsort(ds)
+    #     temp = np.zeros_like(active)
+    #     temp[inact[deg_inds[0:n_activate]]] = 1
+    #     return temp  # active + temp will turn on the stacks at 1s
 
-    def get_illest_active(self, active, deg_state, n_deactivate):
-        act = np.nonzero(active)[0]
-        ds = deg_state[act]
-        deg_inds = np.flip(np.argsort(ds))
-        temp = np.ones_like(active)
-        temp[act[deg_inds[0:n_deactivate]]] = 0
+    # def get_illest_active(self, active, deg_state, n_deactivate):
+    #     act = np.nonzero(active)[0]
+    #     ds = deg_state[act]
+    #     deg_inds = np.flip(np.argsort(ds))
+    #     temp = np.ones_like(active)
+    #     temp[act[deg_inds[0:n_deactivate]]] = 0
 
-        # active * temp will turn off the stacks at 0s
-        return temp
+    #     # active * temp will turn off the stacks at 0s
+    #     return temp
 
     # want to be able to call this from time to time TODO
     # def calculater_LCOH_from_current_state()
