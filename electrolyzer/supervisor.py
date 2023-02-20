@@ -19,7 +19,7 @@ class Supervisor(FromDictMixin):
     costs: dict  # TODO: should this be connected here?
     control: dict
     initialize: bool = False
-    initial_power_kW: float = None
+    initial_power_kW: float = field(init=False, default=0.0)
 
     name: str = field(default="electrolyzer_001")
     description: str = field(default="A PEM electrolyzer model")
@@ -149,7 +149,7 @@ class Supervisor(FromDictMixin):
         elif stack_number < 0:
             print("Error: initial stack number cannot be less than zero")
             return
-        elif self.initial_power_kW == 0:
+        elif self.initial_power_kW == 0 or self.initial_power_kW < self.stack_min_power:
             stack_number = 0
 
         for i in range(stack_number):
