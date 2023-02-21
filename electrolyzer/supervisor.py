@@ -145,7 +145,7 @@ class Supervisor(FromDictMixin):
         # TODO: decide how many stacks should be turned on
         stack_number = round(self.initial_power_kW / self.stack_rating_kW) + 1
         if stack_number > self.n_stacks:
-            stack_number = int(self.n_stacks)
+            stack_number = self.n_stacks
         elif stack_number < 0:
             print("Error: initial stack number cannot be less than zero")
             return
