@@ -57,7 +57,9 @@ def calc_rated_stack(modeling_options: dict):
     Args:
         modeling_options (dict): An options Dict compatible with the modeling schema
     """
-    stack = Stack.from_dict(modeling_options["electrolyzer"]["stack"])
+    options = modeling_options["electrolyzer"]["stack"]
+    options["dt"] = modeling_options["electrolyzer"]["dt"]
+    stack = Stack.from_dict(options)
 
     n_cells = stack.n_cells
 
