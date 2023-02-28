@@ -23,6 +23,7 @@ def _run_electrolyzer_full(modeling_options, power_signal):
     tot_kg = np.zeros((len(power_signal)))
     cycles = np.zeros((elec_sys.n_stacks, len(power_signal)))
     uptime = np.zeros((elec_sys.n_stacks, len(power_signal)))
+    current_density = np.zeros((elec_sys.n_stacks, len(power_signal)))
     p_in = []
 
     # Run electrolyzer simulation
@@ -39,10 +40,12 @@ def _run_electrolyzer_full(modeling_options, power_signal):
         tot_kg[i] = loop_H2
         curtailment[i] = curtailed / 1000000
         for j in range(elec_sys.n_stacks):
+            stack = elec_sys.stacks[j]
             kg_rate[j, i] = loop_h2_mfr[j]
-            degradation[j, i] = elec_sys.stacks[j].V_degradation
-            cycles[j, i] = elec_sys.stacks[j].cycle_count
-            uptime[j, i] = elec_sys.stacks[j].uptime
+            degradation[j, i] = stack.V_degradation
+            cycles[j, i] = stack.cycle_count
+            uptime[j, i] = stack.uptime
+            current_density[j, i] = stack.I / stack.cell.cell_area
 
     # Collect results into a DataFrame
     results_df = pd.DataFrame(
@@ -65,6 +68,7 @@ def _run_electrolyzer_full(modeling_options, power_signal):
                 f"stack_{id}_cycles": cycles[i, :],
                 f"stack_{id}_uptime": uptime[i, :],
                 f"stack_{id}_kg_rate": kg_rate[i, :],
+                f"stack_{id}_curr_density": current_density[i, :],
             }
         )
         stack_dfs.append(stack_df)
@@ -83,6 +87,7 @@ def _run_electrolyzer_opt(modeling_options, power_signal):
 
     # Define output variables
     tot_kg = 0.0
+    max_curr_density = 0.0
 
     # Run electrolyzer simulation
     for i in range(len(power_signal)):
@@ -95,8 +100,10 @@ def _run_electrolyzer_opt(modeling_options, power_signal):
         )
 
         tot_kg += loop_H2
+        new_curr = max([s.I / s.cell.cell_area for s in elec_sys.stacks])
+        max_curr_density = max(max_curr_density, new_curr)
 
-    return tot_kg
+    return tot_kg, max_curr_density
 
 
 def run_electrolyzer(input_modeling, power_signal, optimize=False):
