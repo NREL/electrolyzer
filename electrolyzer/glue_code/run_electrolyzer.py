@@ -80,10 +80,10 @@ def _run_electrolyzer_full(modeling_options, power_signal):
 
 def _run_electrolyzer_opt(modeling_options, power_signal):
     # Tune to a desired system rating
-    calc_rated_system(modeling_options)
+    options = calc_rated_system(modeling_options)
 
     # Initialize system
-    elec_sys = Supervisor.from_dict(modeling_options["electrolyzer"])
+    elec_sys = Supervisor.from_dict(options["electrolyzer"])
 
     # Define output variables
     tot_kg = 0.0

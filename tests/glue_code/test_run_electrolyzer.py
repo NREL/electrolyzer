@@ -89,8 +89,8 @@ def test_optimize():
     res = run_electrolyzer(fname_input_modeling, power_test_signal, optimize=True)
 
     # set up the same scenario, but do full run
-    options = load_modeling_yaml(fname_input_modeling)
-    calc_rated_system(options)
+    modeling_options = load_modeling_yaml(fname_input_modeling)
+    options = calc_rated_system(modeling_options)
     _, df = run_electrolyzer(options, power_test_signal)
 
     assert len(res) == 2
