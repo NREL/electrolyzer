@@ -81,6 +81,9 @@ class Stack(FromDictMixin):
     # Stack dynamics #
     ##################
 
+    # Current (A)
+    I: float = field(init=False, default=0.0)
+
     # 10 minute startup procedure
     stack_on: bool = field(init=False, default=False)
     stack_waiting: bool = field(init=False, default=False)
@@ -151,6 +154,7 @@ class Stack(FromDictMixin):
             power_left = P_in
 
             I = electrolyzer_model((P_in / 1e3, self.temperature), *self.fit_params)
+            self.I = I
             V = self.cell.calc_cell_voltage(I, self.temperature)
 
             if self.include_degradation_penalty:
@@ -315,7 +319,7 @@ class Stack(FromDictMixin):
         next_state = x_kp1
         H2_mfr_actual = y_kp1
 
-        return next_state, H2_mfr_actual
+        return next_state[0][0], H2_mfr_actual[0][0]
 
     def calc_state_space(self):
         """
