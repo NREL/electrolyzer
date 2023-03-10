@@ -1,0 +1,97 @@
+$schema: "http://json-schema.org/draft-07/schema#"
+$id: electrolyzer_model_options_schema_v00
+title: electrolyzer modeling options schema
+description: Schema that describes the modeling options for `electrolyzer`
+type: object
+properties:
+    general:
+        type: object
+        default: {}
+        properties:
+            verbose:
+                type: boolean
+                default: False
+                description: Prints additional outputs to screen (and to a file log in the future)
+
+    # Consider future option to split this out similar to windIO schema
+    electrolyzer:
+        type: object
+        default: {}
+        properties:
+            name:
+                type: string
+                default: electrolyzer_001
+                description: An optional name for the electrolyzer model
+            description:
+                type: string
+                default: A PEM electrolyzer model
+                description: An optional description for the electrolyzer model
+            dt:
+                type: number
+                default: 1.0
+                description: simulation time step
+            initialize:
+                type: boolean
+                default: False
+                description: Determines whether the electrolyzer starts from an initial power (True), or from zero (False)
+            initial_power_kW:
+                type: number
+                default: 0.0
+                description: starting power for an initialized electrolyzer plant
+
+            stack:
+                type: object
+                default: {}
+                description: Set properties for an electrolyzer stack
+                properties:
+                    cell_area:
+                        type: number
+                        description: Area of individual Cells in the Stack (cm^2)
+                        unit: cm^2
+                    max_current:
+                        type: number
+                        description: Maximum current of Stack
+                        unit: A
+                    temperature:
+                        type: number
+                        description: Stack operating temperature
+                        unit: degC
+                    n_cells:
+                        type: integer
+                        description: Number of Cells per Stack
+                    min_power:
+                        type: number
+                        description: Minimum power for Stack operation
+                        unit: kW
+                    stack_rating_kW:
+                        type: number
+                        description: Stack rated power
+                        unit: kW
+                    include_degradation_penalty:
+                        type: boolean
+                        default: True
+                        description: Toggle whether degradation is applied to the Stack operation
+
+            control:
+                type: object
+                default: {}
+                description: Set control properties for electrolyzers
+                properties:
+                    system_rating_MW:
+                        type: number
+                        description: System rating
+                        unit: MW
+                    n_stacks:
+                        type: integer
+                        default: 1
+                        description: Number of electrolyzer Stacks to run in simulation
+                    control_type:
+                        type: string
+                        enum: [PowerSharingRotation, SequentialRotation, EvenSplitEagerDeg, EvenSplitHesitantDeg, SequentialEvenWearDeg, SequentialSingleWearDeg, BaselineDeg]
+                        default: BaselineDeg
+                        description:
+
+            costs:
+                type: object
+                default: {}
+                description: Set cost modeling properties for electrolyzers

@@ -4,30 +4,31 @@ This example runs the Electrolyzer on its own and generates polarization curves.
 import numpy as np
 import matplotlib.pyplot as plt
 
-from electrolyzer.electrolyzer import Electrolyzer, electrolyzer_model
+from electrolyzer import Stack, electrolyzer_model
 
 
-T = 60  # temp
+n_cells = 100  # number of cells in stack
+cell_area = 1000  # cell area, cm^2
+temperature = 60  # temperature
+max_current = 2000
 
-elec = Electrolyzer(100, 1000, T, dt=1)
+stack_dict = {
+    "n_cells": n_cells,
+    "cell_area": cell_area,
+    "temperature": temperature,
+    "max_current": max_current,
+}
+
+elec = Stack.from_dict(stack_dict)
 
 cur = np.linspace(0, 2500, 100)
-fit_error = np.zeros_like(cur)
-p_actual = np.zeros_like(cur)
-p_fit = np.zeros_like(cur)
-voltage = np.zeros_like(cur)
+p_fit = elec.calc_stack_power(
+    electrolyzer_model((elec.calc_stack_power(cur), temperature), *elec.fit_params)
+)
+p_actual = elec.calc_stack_power(cur)
+voltage = elec.cell.calc_cell_voltage(cur, temperature)
+fit_error = p_actual - p_fit
 
-for i in range(len(cur)):
-    fit_error[i] = elec.calc_stack_power(cur[i], T) - elec.calc_stack_power(
-        electrolyzer_model((elec.calc_stack_power(cur[i], T), T), *elec.fit_params),
-        T,
-    )
-    p_actual[i] = elec.calc_stack_power(cur[i], T)
-    p_fit[i] = elec.calc_stack_power(
-        electrolyzer_model((elec.calc_stack_power(cur[i], T), T), *elec.fit_params),
-        T,
-    )
-    voltage[i] = elec.calc_cell_voltage(cur[i], T)
 fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
 
 ax1.plot(cur / (1000), fit_error / elec.stack_rating_kW * 100)

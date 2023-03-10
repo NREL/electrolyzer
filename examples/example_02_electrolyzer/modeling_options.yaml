@@ -1,0 +1,15 @@
+general:
+    verbose: False # default
+
+electrolyzer:
+    dt: 1 # default
+
+    stack:
+        cell_area: 1000.0
+        max_current: 2000
+        temperature: 60
+        n_cells: 100
+        stack_rating_kW: 500
+    control:
+        n_stacks: 7
+        control_type: BaselineDeg # default

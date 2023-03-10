@@ -2,104 +2,171 @@
 This module defines the Hydrogen Electrolyzer control code.
 """
 import numpy as np
+import numpy.typing as npt
+from attrs import field, define
 
-from electrolyzer import Electrolyzer
+from .stack import Stack
+from .type_dec import NDArrayInt, NDArrayFloat, FromDictMixin
 
 
-class ElectrolyzerSupervisor:
-    def __init__(self, electrolyzer_dict, control_type, dt=1):
+@define
+class Supervisor(FromDictMixin):
+    # Stack parameters #
+    ####################
 
-        # H2 farm parameters
-        self.n_stacks = electrolyzer_dict["n_stacks"]
-        self.n_cells = electrolyzer_dict["n_cells"]
-        self.cell_area = electrolyzer_dict["cell_area"]
+    dt: float
+    stack: dict
+    costs: dict  # TODO: should this be connected here?
+    control: dict
+    initialize: bool = False
+    initial_power_kW: float = 0.0
 
-        # TODO query electrolyzer for this
-        self.stack_rating_kW = electrolyzer_dict["stack_rating_kW"]
-        self.stack_rating = self.stack_rating_kW * 1e3
+    name: str = field(default="electrolyzer_001")
+    description: str = field(default="A PEM electrolyzer model")
 
-        # TODO query electrolyzer for this
-        self.stack_min_power = (10 / 100) * self.stack_rating
+    control_type: str = field(init=False, default="BaselineDeg")
+    n_stacks: int = field(init=False, default=1)
 
-        # TODO remove
-        self.stack_input_voltage = electrolyzer_dict["stack_input_voltage"]
-        self.temperature = electrolyzer_dict["temperature"]
-        self.dt = dt
+    stack_min_power: float = field(init=False)
+    system_rating_MW: float = field(init=False)
+    stack_rating_kW: float = field(init=False)
+    stack_rating: float = field(init=False)
 
-        # Controller storage variables
+    # Controller state #
+    ####################
 
-        # array of stack activation status 0 for inactive, 1 for active
-        self.active = np.zeros(self.n_stacks)
+    # only for sequential controller TODO: find sneakier place to initialize this
+    active_constant: NDArrayInt = field(init=False)
 
-        # array of stack waiting status 0 for active or inactive, 1 for waiting
-        self.waiting = np.zeros(self.n_stacks)
+    # array of stack activation status 0 for inactive, 1 for active
+    active: NDArrayInt = field(init=False)
 
-        # only for sequential controller TODO: find sneakier place to initialize this
-        self.active_constant = np.zeros(self.n_stacks)
-        self.variable_stack = 0  # again, only for sequential controller
-        self.stack_rotation = []
-        self.stacks_on = 0
-        self.stacks_waiting = 0
-        self.stacks_off = []
-        self.stacks_waiting_vec = np.zeros((self.n_stacks))
-        self.deg_state = np.zeros(self.n_stacks)
+    # array of stack waiting status 0 for active or inactive, 1 for waiting
+    waiting: NDArrayInt = field(init=False)
 
-        self.stacks = self.create_electrolyzer_stacks()  # initialize stack objects
+    # again, only for sequential controller
+    variable_stack: int = field(init=False, default=0)
+    stack_rotation: NDArrayInt = field(init=False, default=[])
+    stacks_on: int = field(init=False, default=0)
+    stacks_waiting: int = field(init=False, default=0)
+    stacks_off: NDArrayInt = field(init=False, default=[])
+    stacks_waiting_vec: NDArrayInt = field(init=False)
+    deg_state: NDArrayFloat = field(init=False)
+    filter_width: int = field(init=False)
+    past_power: NDArrayFloat = field(init=False)
 
-        self.control_type = control_type
+    stacks: npt.NDArray = field(init=False)
+
+    def __attrs_post_init__(self) -> None:
         """
         --- Current control_type Options ---
 
         Rotation-based electrolyzer action schemes:
-            'power sharing rotation': power sharing, rotation
-            'sequential rotation': sequentially turn on electrolzyers, rotate
+            'PowerSharingRotation': power sharing, rotation
+            'SequentialRotation': sequentially turn on electrolzyers, rotate
                 electrolyzer roles based on set schedule (i.e. variable electrolyzer,
                 etc.)
 
         Degredation-based electrolyzer action schemes:
-            'even split eager deg': power sharing, eager to turn on electrolyzers
-            'even split hesitant deg': power sharing
-            'sequential even wear deg': sequentially turn on electrolzyers, distribute
+            'EvenSplitEagerDeg': power sharing, eager to turn on electrolyzers
+            'EvenSplitHesitantDeg': power sharing
+            'SequentialEvenWearDeg': sequentially turn on electrolzyers, distribute
                 wear evenly
-            'sequential single wear deg': sequentially turn on electrolyzers, put all
+            'SequentialSingleWearDeg': sequentially turn on electrolyzers, put all
                 degradation on single electrolyzer
-            'baseline deg': sequentially turn on and off electrolyzers but only when you
+            'BaselineDeg': sequentially turn on and off electrolyzers but only when you
                 have to
         """
-        if "sequential" in self.control_type:
+        self.control_type = self.control["control_type"]
+        self.n_stacks = self.control["n_stacks"]
+
+        if "sequential" in self.control_type.lower():
             # TODO: current filter width hardcoded at 5 min, make an input
-            self.filter_width = round(1200 / self.dt)
+            self.filter_width = round(300 / self.dt)
 
             # TODO: decide how to initialize past_power
             self.past_power = [0]
 
-        # delete all these eventually they are just for troubleshooting and plotting
-        self.P_indv_store = []
-        self.active_store = []
-        self.deg_state_store = []
-        self.waiting_store = []
-        self.active_actual_store = []
-        self.H2_store = []
-        self.unused_power = []
+        self.active_constant = np.zeros(self.n_stacks)
+        self.active = np.zeros(self.n_stacks)
+        self.waiting = np.zeros(self.n_stacks)
+        self.stacks_waiting_vec = np.zeros((self.n_stacks))
+        self.deg_state = np.zeros(self.n_stacks)
+        self.stacks = self.create_electrolyzer_stacks()
+
+        # Query stack info from an initialized stack. All stacks have identical
+        # ratings for now, but this may change in the future.
+        self.stack_rating_kW = self.stacks[0].stack_rating_kW
+        self.stack_rating = self.stacks[0].stack_rating
+        self.stack_min_power = self.stacks[0].min_power
+        if self.initialize:
+            self.initialize_plant_stacks()
+
+        # Establish system rating
+        if "system_rating_MW" in self.control:
+            self.system_rating_MW = self.control["system_rating_MW"]
+        else:
+            self.n_stacks * self.stack_rating_kW / 1e3
+
+    # TODO: query stacks for on/off status instead of maintaining arrays
+
+    def get_stacks_waiting(self):
+        return [int(s.waiting) for s in self.stacks]
+
+    def get_stacks_on(self):
+        return [int(s.active) for s in self.stacks]
+
+    def get_stacks_off(self):
+        return [not int(s.active) for s in self.stacks]
 
     def create_electrolyzer_stacks(self):
         # initialize electrolyzer objects
         stacks = []
+        self.stack["dt"] = self.dt
         for i in range(self.n_stacks):
-            stacks.append(
-                Electrolyzer(self.n_cells, self.cell_area, self.temperature, dt=self.dt)
-            )
+            stacks.append(Stack.from_dict(self.stack))
             self.stack_rotation.append(i)
-            print(
-                "electrolyzer stack ",
-                i + 1,
-                "out of ",
-                self.n_stacks,
-                "has been initialized",
-            )
+            # TODO: replace with proper logging
+            # print(
+            #     "electrolyzer stack ",
+            #     i + 1,
+            #     "out of ",
+            #     self.n_stacks,
+            #     "has been initialized",
+            # )
         return stacks
 
-    def control(self, power_in):
+    def update_stack_status(self):
+        # Update stack status
+        for i in range(self.n_stacks):
+            if self.stacks[i].stack_on:
+                self.stacks_on += 1
+                self.active[i] = 1
+            if self.stacks[i].stack_waiting:
+                self.waiting[i] = 1
+                self.stacks_waiting_vec[i] = 1
+            else:
+                self.waiting[i] = 0
+                self.stacks_waiting_vec[i] = 0
+
+    def initialize_plant_stacks(self):
+        # TODO: decide how many stacks should be turned on
+        stack_number = round(self.initial_power_kW / self.stack_rating_kW) + 1
+        if stack_number > self.n_stacks:
+            stack_number = self.n_stacks
+        elif stack_number < 0:
+            print("Error: initial stack number cannot be less than zero")
+            return
+        elif self.initial_power_kW == 0 or self.initial_power_kW < (
+            self.stack_min_power / 1e3
+        ):
+            stack_number = 0
+
+        for i in range(stack_number):
+            self.stacks[i].stack_on = True
+        self.update_stack_status()
+
+    def run_control(self, power_in):
         """
         Inputs:
             power_in: power (W) to be consumed by the H2 farm every time step
@@ -113,23 +180,23 @@ class ElectrolyzerSupervisor:
         """
 
         # calculate stack power distribution
-        if self.control_type == "power sharing rotation":
+        if self.control_type == "PowerSharingRotation":
             stack_power, curtailed_wind = self.power_sharing_rotation(power_in)
-        elif self.control_type == "sequential rotation":
+        elif self.control_type == "SequentialRotation":
             stack_power, curtailed_wind = self.sequential_rotation(power_in)
-        elif self.control_type == "even split eager deg":
+        elif self.control_type == "EvenSplitEagerDeg":
             stack_power = self.distribute_power_equal_eager(power_in)
             curtailed_wind = 0
-        elif self.control_type == "even split hesitant deg":
+        elif self.control_type == "EvenSplitHesitantDeg":
             stack_power = self.distribute_power_equal_hesitant(power_in)
             curtailed_wind = 0
-        elif self.control_type == "sequential even wear deg":
+        elif self.control_type == "SequentialEvenWearDeg":
             stack_power = self.distribute_power_sequential_even_wear(power_in)
             curtailed_wind = 0
-        elif self.control_type == "sequential single wear deg":
+        elif self.control_type == "SequentialSingleWearDeg":
             stack_power = self.distribute_power_sequential_single_wear(power_in)
             curtailed_wind = 0
-        elif self.control_type == "baseline deg":
+        elif self.control_type == "BaselineDeg":
             stack_power = self.baseline_controller(power_in)
             curtailed_wind = 0
 
@@ -142,7 +209,7 @@ class ElectrolyzerSupervisor:
                     on_or_waiting[i] = 1
 
             # which stacks the controller thinks are on and which are actually on
-            mismatch = self.active - on_or_waiting
+            mismatch = (self.active + self.waiting) - on_or_waiting
 
             for i in range(len(mismatch)):
                 # this means the controller wants an electrolyzer on and that
@@ -197,14 +264,6 @@ class ElectrolyzerSupervisor:
             power_left += power_left_i
 
         curtailed_wind = max(0, power_in - (np.dot(on_or_waiting, stack_power)))
-
-        self.P_indv_store.append(stack_power)
-        self.active_store.append(np.copy(self.active))
-        self.waiting_store.append(np.copy(self.waiting))
-        self.deg_state_store.append(np.copy(self.deg_state))
-        self.active_actual_store.append(np.copy(active_actual))
-        self.H2_store.append(np.copy(H2_mass_flow_rate))
-        self.unused_power.append(np.copy(power_left))
 
         return H2_mass_out, H2_mass_flow_rate, power_left, curtailed_wind
 
@@ -284,7 +343,6 @@ class ElectrolyzerSupervisor:
         slope = np.mean(
             (np.mean(self.past_power[1:]) - np.mean(self.past_power[0:-1])) / self.dt
         )
-        print(slope)
 
         if stack_difference >= 0:
             # P_indv = P_indv * self.stack_rating_kW * 1000
@@ -292,6 +350,7 @@ class ElectrolyzerSupervisor:
             # for i in self.active:
             #     if i > 0:
             P_indv[self.active > 0] = self.stack_rating_kW * 1000
+            P_indv[elec_var] = left_over_power * 1000
             curtailed_wind = (stack_difference * self.stack_rating_kW) + left_over_power
             if (
                 sum(self.waiting) == 0
@@ -307,22 +366,18 @@ class ElectrolyzerSupervisor:
             curtailed_wind = 0
             P_indv = P_indv * 0
 
-            # if n_full > 0
-            # for i in self.active:
-            #     if i > 0:
-            #         P_indv[i] = self.stack_rating_kW * 1000
             P_indv[self.active > 0] = self.stack_rating_kW * 1000
-
-            # for i in self.stacks_off:
-            #     P_indv[i] = 0
-            if stack_difference > -2:
+            if stack_difference < -2:
                 if sum(self.waiting) == 0 and sum(self.active) != self.n_stacks:
                     ij = 0
                     while self.active[self.stack_rotation[ij]] > 0:
                         ij += 1
-                    on_stack = self.stack_rotation[ij]
-                    self.turn_on_stack(on_stack)
-                    P_indv[on_stack] = self.stack_rating_kW * 1000
+                    off_stack = self.stack_rotation[ij]
+                    # self.turn_on_stack(on_stack)
+                    self.turn_off_stack(off_stack)
+                    # P_indv[on_stack] = self.stack_rating_kW * 1000
+                    P_indv[off_stack] = 0
+                    P_indv[elec_var] = self.stack_rating_kW * 1000
 
             elif (
                 (
@@ -335,7 +390,8 @@ class ElectrolyzerSupervisor:
                     self.stack_rotation = self.stack_rotation[1:] + [
                         self.stack_rotation[0]
                     ]
-                    P_indv[elec_var] = 0
+                    elec_var = self.stack_rotation[0]
+                    P_indv[elec_var] = self.stack_rating_kW * 1000
                     curtailed_wind = left_over_power
             elif (
                 left_over_power < (0.1 * self.stack_rating_kW) and sum(self.waiting) > 0
@@ -569,7 +625,6 @@ class ElectrolyzerSupervisor:
         p_avail -= sum(P_indv)
 
         for i in range(self.n_stacks):
-
             if p_avail >= (self.stack_rating - self.stack_min_power):
                 P_indv[i] += self.stack_rating - self.stack_min_power
                 p_avail -= self.stack_rating - self.stack_min_power
