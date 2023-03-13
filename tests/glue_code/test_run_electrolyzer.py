@@ -14,7 +14,6 @@ import electrolyzer.inputs.validation as val
 from electrolyzer import Supervisor
 from electrolyzer.glue_code.run_electrolyzer import run_electrolyzer
 
-
 turbine_rating = 3.4  # MW
 
 # Create cosine test signal
