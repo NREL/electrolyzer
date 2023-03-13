@@ -93,10 +93,10 @@ class Stack(FromDictMixin):
     turn_on_delay: float = field(init=False)
 
     # keep track of when the stack was last turned on
-    turn_on_time: float = field(init=False, default=0)
+    turn_on_time: float = field(init=False)
 
     # keep track of when the stack was last turned off
-    turn_off_time: float = field(init=False, default=-1000)
+    turn_off_time: float = field(init=False)
 
     # wait time for partial startup procedure (set in __attrs_post_init)
     wait_time: float = field(init=False)
@@ -136,6 +136,9 @@ class Stack(FromDictMixin):
             self.turn_on_delay = 0
         else:
             self.turn_on_delay = self.base_turn_on_delay
+
+        self.turn_on_time = 0
+        self.turn_off_time = -self.turn_on_delay
 
         self.wait_time = np.min(
             [
