@@ -101,9 +101,6 @@ class Stack(FromDictMixin):
     # wait time for partial startup procedure (set in __attrs_post_init)
     wait_time: float = field(init=False)
 
-    # # [s] simulation time step
-    # dt: float = 1
-
     # [s] total time of simulation
     time: float = field(init=False, default=0)
 
@@ -140,7 +137,12 @@ class Stack(FromDictMixin):
         else:
             self.turn_on_delay = self.base_turn_on_delay
 
-        self.wait_time = self.turn_on_time
+        self.wait_time = np.min(
+            [
+                (self.turn_on_time - self.turn_off_time),
+                self.turn_on_delay,
+            ]
+        )
 
         # [kW] nameplate power rating
         self.stack_rating_kW = self.stack_rating_kW or self.calc_stack_power(
