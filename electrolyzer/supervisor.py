@@ -46,10 +46,9 @@ class Supervisor(FromDictMixin):
 
     # again, only for sequential controller
     variable_stack: int = field(init=False, default=0)
-    stack_rotation: NDArrayInt = field(init=False, default=[])
+    stack_rotation: NDArrayInt = field(init=False)
     stacks_on: int = field(init=False, default=0)
-    stacks_waiting: int = field(init=False, default=0)
-    stacks_off: NDArrayInt = field(init=False, default=[])
+    # stacks_off: NDArrayInt = field(init=False, default=[])
     stacks_waiting_vec: NDArrayInt = field(init=False)
     deg_state: NDArrayFloat = field(init=False)
     filter_width: int = field(init=False)
@@ -87,10 +86,11 @@ class Supervisor(FromDictMixin):
             # TODO: decide how to initialize past_power
             self.past_power = [0]
 
-        self.active_constant = np.zeros(self.n_stacks)
-        self.active = np.zeros(self.n_stacks)
-        self.waiting = np.zeros(self.n_stacks)
-        self.stacks_waiting_vec = np.zeros((self.n_stacks))
+        self.active_constant = np.zeros(self.n_stacks, dtype=int)
+        self.active = np.zeros(self.n_stacks, dtype=int)
+        self.waiting = np.zeros(self.n_stacks, dtype=int)
+        self.stack_rotation = np.arange(self.n_stacks, dtype=int)
+        self.stacks_waiting_vec = np.zeros(self.n_stacks, dtype=int)
         self.deg_state = np.zeros(self.n_stacks)
         self.stacks = self.create_electrolyzer_stacks()
 
@@ -108,24 +108,12 @@ class Supervisor(FromDictMixin):
         else:
             self.n_stacks * self.stack_rating_kW / 1e3
 
-    # TODO: query stacks for on/off status instead of maintaining arrays
-
-    def get_stacks_waiting(self):
-        return [int(s.waiting) for s in self.stacks]
-
-    def get_stacks_on(self):
-        return [int(s.active) for s in self.stacks]
-
-    def get_stacks_off(self):
-        return [not int(s.active) for s in self.stacks]
-
     def create_electrolyzer_stacks(self):
         # initialize electrolyzer objects
-        stacks = []
+        stacks = np.empty(self.n_stacks, Stack)
         self.stack["dt"] = self.dt
         for i in range(self.n_stacks):
-            stacks.append(Stack.from_dict(self.stack))
-            self.stack_rotation.append(i)
+            stacks[i] = Stack.from_dict(self.stack)
             # TODO: replace with proper logging
             # print(
             #     "electrolyzer stack ",
@@ -236,7 +224,6 @@ class Supervisor(FromDictMixin):
 
         power_left = 0
         H2_mass_out = 0
-        self.stacks_waiting = 0
         self.stacks_on = 0
         H2_mass_flow_rate = np.zeros((self.n_stacks))
 
