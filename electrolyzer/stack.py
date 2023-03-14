@@ -150,19 +150,20 @@ class Stack(FromDictMixin):
         """
         self.update_status()
 
+        I = electrolyzer_model((P_in / 1e3, self.temperature), *self.fit_params)
+        V = self.cell.calc_cell_voltage(I, self.temperature)
+
         if self.stack_on:
             power_left = P_in
 
-            I = electrolyzer_model((P_in / 1e3, self.temperature), *self.fit_params)
             self.I = I
-            V = self.cell.calc_cell_voltage(I, self.temperature)
 
             if self.include_degradation_penalty:
                 V += self.V_degradation
 
             self.update_temperature(I, V)
             self.update_degradation()
-            power_left -= self.calc_stack_power(I) * 1e3
+            power_left -= self.calc_stack_power(I, V) * 1e3
             H2_mfr = self.cell.calc_mass_flow_rate(I) * self.n_cells
             self.stack_state, H2_mfr = self.update_dynamics(H2_mfr, self.stack_state)
 
@@ -172,8 +173,7 @@ class Stack(FromDictMixin):
         else:
             if self.stack_waiting:
                 self.uptime += self.dt
-                I = electrolyzer_model((P_in / 1e3, self.temperature), *self.fit_params)
-                V = self.cell.calc_cell_voltage(I, self.temperature)
+                self.I = I
                 self.update_temperature(I, V)
                 self.update_degradation()
                 power_left = 0
@@ -372,12 +372,15 @@ class Stack(FromDictMixin):
             ]
         )
 
-    def calc_stack_power(self, Idc):
+    def calc_stack_power(self, Idc, V=None):
         """
-        Idc [A]: stack current
-        return :: Pdc [kW]: stack power
+        Args:
+            Idc [A]: stack current
+            V (optional): stack voltage
+            return :: Pdc [kW]: stack power
         """
-        Pdc = Idc * self.cell.calc_cell_voltage(Idc, self.temperature) * self.n_cells
+        V = V or (self.cell.calc_cell_voltage(Idc, self.temperature) * self.n_cells)
+        Pdc = Idc * V
         Pdc = Pdc / 1000.0  # [kW]
 
         return Pdc
