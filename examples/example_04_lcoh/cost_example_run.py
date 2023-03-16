@@ -1,12 +1,10 @@
 """
-This example performs a fully controlled electrolyzer simulation using the
-`run_electrolyzer` function. See `example_run.ipynb` for an interactive option.
+This example performs an LCOH calculation for an electrolyzer system.
 """
 import os
-
 import numpy as np
 
-from electrolyzer import run_lcoh  # , run_electrolyzer,LCOH,
+from electrolyzer import run_lcoh
 
 
 fname_input_modeling = os.path.join(
@@ -21,10 +19,7 @@ base_value = (turbine_rating / 2) + 0.2
 variation_value = turbine_rating - base_value
 power_test_signal = (base_value + variation_value * np.cos(test_signal_angle)) * 1e6
 
-# res = run_electrolyzer(fname_input_modeling, power_test_signal)
 lcoe = 44.18 * (1 / 1000)
 res = run_lcoh(fname_input_modeling, power_test_signal, lcoe)
-#
-# run_lcoh(fname_input_modeling, res[0], res[1], lcoe)
-[]
-# print(res)
+
+print(res)
