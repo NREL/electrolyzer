@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 import electrolyzer.inputs.validation as val
+from electrolyzer import LCOH  # ESG
 from electrolyzer import Supervisor
 
 from .optimization import calc_rated_system
@@ -15,6 +16,8 @@ from .optimization import calc_rated_system
 def _run_electrolyzer_full(modeling_options, power_signal):
     # Initialize system
     elec_sys = Supervisor.from_dict(modeling_options["electrolyzer"])
+    # initialize cost system
+    cost_sys = LCOH.from_dict(modeling_options["electrolyzer"]["costs"])
 
     # Define output variables
     kg_rate = np.zeros((elec_sys.n_stacks, len(power_signal)))
@@ -74,8 +77,8 @@ def _run_electrolyzer_full(modeling_options, power_signal):
         stack_dfs.append(stack_df)
 
     results_df = pd.concat([results_df, *stack_dfs], axis=1)
-
-    return elec_sys, results_df
+    # return elec_sys & results & cost sys to use in LCOH
+    return elec_sys, results_df, cost_sys
 
 
 def _run_electrolyzer_opt(modeling_options, power_signal):
@@ -106,7 +109,91 @@ def _run_electrolyzer_opt(modeling_options, power_signal):
     return tot_kg, max_curr_density
 
 
-def run_electrolyzer(input_modeling, power_signal, optimize=False):
+def _run_lcoh_full(elec_sys, elec_df, cost_sys, lcoe):
+    # Called after simulation
+    # Below is used as a bit of a work-around for some bugs I was having
+    # basically just initialize
+    cost_sys.get_simulation_info(elec_sys, elec_df, lcoe)
+    # below is the main run function
+    lcoh = cost_sys.run_lcoh()
+
+    # all code below this is used to get specific cost information
+    # and lcoh breakdowns - feel free to comment out if you just
+    # the lcoh
+    lcoh_df_tots = pd.concat(
+        [
+            pd.Series(cost_sys.LCOH_summary["Totals [$]"], name="Life Totals [$]"),
+            pd.Series(
+                cost_sys.LCOH_summary["Totals [$/kg-H2]"], name="Life Totals [$/kg-H2]"
+            ),
+        ],
+        axis=1,
+    )
+
+    stack_rep_keys = [
+        "Stack Replacement Cost [$/kW]",
+        "Stack Replacement Cost [$/stack]",
+    ]
+    sr_srs = pd.Series(cost_sys.StackReplacement_summary, name="Stack Replacement")[
+        stack_rep_keys
+    ]
+
+    feedstock_keys = [
+        "Annual Electricity Cost [$]",
+        "Annual H20 Cost [$]",
+        "Total Feedstock Cost [$]",
+    ]
+    fds_srs = pd.Series(cost_sys.Feedstock_summary, name="Feedstock")[feedstock_keys]
+    cpx_srs = pd.concat(
+        [
+            pd.Series(cost_sys.CapEx_summary["BOP"], name="BOP"),
+            pd.Series(cost_sys.CapEx_summary["PEM"], name="PEM"),
+        ],
+        axis=1,
+    )
+
+    raw_dict = {
+        "CapEx": cpx_srs,
+        "OpEx": pd.Series(cost_sys.OpEx_summary, name="OpEx"),
+        "Feedstock": fds_srs,
+        "Stack Replacement": sr_srs,
+    }
+
+    cost_sys.LCOH_summary["Yearly"]
+    stackrep_yrly = pd.concat(
+        [
+            pd.Series(
+                cost_sys.StackReplacement_summary["Annual Stack Replacement Cost [$]"],
+                name="SR-Cost [$]",
+            ),
+            pd.Series(
+                cost_sys.StackReplacement_schedule[
+                    "Annual Number of Stacks to Replace"
+                ],
+                name="num SR/year",
+            ),
+        ],
+        axis=1,
+    )
+    # cost_sys.StackReplacement_schedule['Hrs until Replacement']
+    # cost_sys.StackReplacement_schedule['Stacks Replaced']
+    lcoh_dict = {
+        "Raw Costs": raw_dict,
+        "LCOH Breakdown": lcoh_df_tots,
+        "LCOE-Yearly": cost_sys.LCOH_summary["Yearly"],
+        "Stack Rep Raw": stackrep_yrly,
+    }
+
+    # below is for debugging
+    # feedstock_dbg_keys=['Sim Electricity Cost [$]','Sim H20 Cost [$]']
+    # pd.Series(cost_sys.Feedstock_summary,name="Feedstock")[feedstock_dbg_keys]
+    # cost_sys.StackReplacement_schedule['Hrs until Replacement']
+    # cost_sys.StackReplacement_schedule['Stacks Replaced']
+
+    return lcoh_dict, lcoh
+
+
+def run_lcoh(input_modeling, power_signal, lcoe):
     """
     Runs an electrolyzer simulation based on a YAML configuration file and power
     signal input.
@@ -115,14 +202,14 @@ def run_electrolyzer(input_modeling, power_signal, optimize=False):
         input_modeling (`str` or `dict`): filepath specifying the YAML config
             file, OR a dict representing a validated YAML config.
         power_signal (`list`): An array representing power input
+        lcoe (`float`): cost of energy for lcoh calculation
         optimize (`bool`, optional): Whether the run will be based on an optimization.
             For now, this entails tuning a system to a desired system rating, running
             the simulation, and returning a simplified result for optimization runs.
 
     Returns:
-        `Supervisor`: the instance used to run the simulation
-        `pandas.DataFrame`: a `DataFrame` representing the time series output
-            for the system, including values for each electrolyzer stack
+        'lcoh_dict': dictionary of LCOH values
+        'lcoh' LCOh in $/kg-H2
     """
     err_msg = "Model input must be a str or dict object"
     assert isinstance(
@@ -138,8 +225,16 @@ def run_electrolyzer(input_modeling, power_signal, optimize=False):
         modeling_options = val.load_modeling_yaml(input_modeling)
     else:
         modeling_options = input_modeling
+    # LCOH NOT IMPLEMENTED FOR CASE WHERE OPTIMIZE=TRUE
+    # if optimize:
+    #     return _run_electrolyzer_opt(modeling_options, power_signal)
+    # step 0: initialize electorolyzer and cost systems.
+    # step 1: run the electrolyzer!
+    elec_sys, results_df, cost_sys = _run_electrolyzer_full(
+        modeling_options, power_signal
+    )
 
-    if optimize:
-        return _run_electrolyzer_opt(modeling_options, power_signal)
-
-    return _run_electrolyzer_full(modeling_options, power_signal)
+    # step 2: run lcoh calculations
+    # TODO: separate electrolyzer simulation & LCOH simulation
+    lcoh_dict, lcoh = _run_lcoh_full(elec_sys, results_df, cost_sys, lcoe)
+    return lcoh_dict, lcoh

@@ -18,6 +18,7 @@ class Stack(FromDictMixin):
     max_current: float
     temperature: float
     n_cells: int
+    dt: float
 
     min_power: float = None
     stack_rating_kW: float = None
@@ -30,20 +31,20 @@ class Stack(FromDictMixin):
     # Degradation state #
     #####################
 
-    include_degradation_penalty: bool = True
+    # [s] amount of time this electrolyzer stack has been running
+    uptime: float = field(init=False, default=0)
+
+    cell_voltage: float = field(init=False, default=0)
+
+    # conversion factor from steady to degradation V
+    rate_steady: float = field(init=False, default=1.41737929e-10)
+
+    # [V] degradation penalty from steady operation only
+    d_s: float = field(init=False, default=0)
 
     # fatigue value for tracking fatigue in terms of "stress cycles"
     # rainflow counting
     rf_track: float = field(init=False, default=0)
-
-    # [V] running degradation voltage penalty
-    V_degradation: float = field(init=False, default=0)
-
-    # [s] amount of time this electrolyzer stack has been running
-    uptime: float = field(init=False, default=0)
-
-    # numer of times the stack has been turned off
-    cycle_count: int = field(init=False, default=0)
 
     # [V] running count of fatigue voltage penalty
     fatigue_history: float = field(init=False, default=0)
@@ -57,8 +58,31 @@ class Stack(FromDictMixin):
         init=False, default=[], converter=array_converter
     )
 
+    # conversion factor from rf_track to degradation V
+    rate_fatigue: float = field(init=False, default=3.33330244e-07)
+
+    # [V] degradation from fluctuating power only
+    d_f: float = field(init=False, default=0)
+
+    # numer of times the stack has been turned off
+    cycle_count: int = field(init=False, default=0)
+
+    # conversion from cycle_count to degradation V
+    rate_onoff: float = field(init=False, default=1.47821515e-04)
+
+    # [V] degradation from on/off cycling only
+    d_o: float = field(init=False, default=0)
+
+    include_degradation_penalty: bool = True
+
+    # [V] running degradation voltage penalty
+    V_degradation: float = field(init=False, default=0)
+
     # Stack dynamics #
     ##################
+
+    # Current (A)
+    I: float = field(init=False, default=0.0)
 
     # 10 minute startup procedure
     stack_on: bool = field(init=False, default=False)
@@ -76,8 +100,8 @@ class Stack(FromDictMixin):
     # wait time for partial startup procedure (set in __attrs_post_init)
     wait_time: float = field(init=False)
 
-    # [s] simulation time step
-    dt: float = 1
+    # # [s] simulation time step
+    # dt: float = 1
 
     # [s] total time of simulation
     time: float = field(init=False, default=0)
@@ -124,10 +148,13 @@ class Stack(FromDictMixin):
         return :: H2_mass_out [kg]: hydrogen mass
         return :: power_left [W]: difference in P_in and power consumed
         """
+        self.update_status()
+
         if self.stack_on:
             power_left = P_in
 
             I = electrolyzer_model((P_in / 1e3, self.temperature), *self.fit_params)
+            self.I = I
             V = self.cell.calc_cell_voltage(I, self.temperature)
 
             if self.include_degradation_penalty:
@@ -145,14 +172,19 @@ class Stack(FromDictMixin):
         else:
             if self.stack_waiting:
                 self.uptime += self.dt
+                I = electrolyzer_model((P_in / 1e3, self.temperature), *self.fit_params)
+                V = self.cell.calc_cell_voltage(I, self.temperature)
+                self.update_temperature(I, V)
+                self.update_degradation()
                 power_left = 0
             else:
                 power_left = P_in
+                V = 0
 
             H2_mfr = 0
             H2_mass_out = 0
-            V = 0  # TODO: Should we adjust this for waiting period for degradation?
 
+        self.cell_voltage = V
         self.voltage_history = np.append(self.voltage_history, [V])
 
         # check if it is an hour to decide whether to calculate fatigue
@@ -165,8 +197,6 @@ class Stack(FromDictMixin):
             self.voltage_history = np.array([])
         else:
             self.hour_change = False
-
-        self.update_status()
 
         return H2_mfr, H2_mass_out, power_left
 
@@ -232,74 +262,42 @@ class Stack(FromDictMixin):
         rf_sum = np.sum([pair[0] * pair[1] for pair in rf_cycles])
         self.rf_track += rf_sum  # running sum of the fatigue value
 
-        # below: these numbers are the lowest cataylst loading (most fragile)
-        # A = 0.2274592919410412
-        # B = 0.10278876731577287
-
-        # below: these numbers are the highest catalyst loading (least fragile)
-        # A = 0.22746397778732894
-        # B = 0.06116270762621622
-
-        # below: these numbers are based off a 40000 hr lifetime of steady operation
-        # decreased by 1/3 due to renewable energy signal
-        A = 0.22746397778732844
-        B = 0.0070957975662638405
-
-        voltage_penalty = max([0, B * self.rf_track**A])
-
-        return voltage_penalty
+        return self.rate_fatigue * self.rf_track
 
     def calc_steady_degradation(self):
-        # https://www.researchgate.net/publication/263092194_Investigations_on_degradation_of_the_long-term_proton_exchange_membrane_water_electrolysis_stack # noqa
-        # steady_deg_rate = 35.5e-6 # (microvolts / hr)
+        # based off degradation due to steady operation
+        # from results in https://iopscience.iop.org/article/10.1149/2.0231915je
 
-        # (volts / hr) most fragile membrane loading from Alia et al 2019
-        # steady_deg_rate = 0.000290726819047619
+        d_s = self.d_s + self.rate_steady * self.cell_voltage * self.dt
 
-        # this is set as constant now but should be changed dynamically in the future
-        operating_voltage = 2
-
-        # lowest catalyst loading steady degradation rate
-        # steady_deg_rate = 2.80278563e-08 * operating_voltage
-
-        # highest catalyst loading steady degradation rate [V/(s V)*(V)]
-        steady_deg_rate = 1.12775521e-09 * operating_voltage
-        # ^ these are in units of [V/s]
-
-        # return steady_deg_rate*self.uptime/(60*60)
-        return steady_deg_rate * self.uptime
+        self.d_s = d_s
+        return d_s
 
     def calc_onoff_degradation(self):
-        # This is a made up number roughly equal to operating at steady for 1 day
-        # onoff_rate = 0.006977443657142856 # (volts / cycle)
+        # degradation due to shut downs based off the results in
+        # https://iopscience.iop.org/article/10.1149/2.0421908jes/meta
 
-        # This is a made up number roughly equal to operating at steady for 1 day for
-        # highest catalyst loading steady
-        onoff_rate = 0.00019487610028800001  # (volts / cycle)
-
-        return onoff_rate * self.cycle_count
+        d_o = self.rate_onoff * self.cycle_count
+        self.d_o = d_o
+        return d_o
 
     def update_degradation(self):
-        # scaling factors to manually change the rates of degradation
-        steady_factor = 1
-        onoff_factor = 1
-        fatigue_factor = 1
-
         if self.hour_change:  # only calculate fatigue degradation every hour
             voltage_perc = (max(self.voltage_signal) - min(self.voltage_signal)) / max(
                 self.voltage_signal
             )
             # Only penalize if more than 5% difference in voltage
             if voltage_perc > 0.05:
-                # I think this should be just a normal = not a +=
                 self.fatigue_history = self.calc_fatigue_degradation(
                     self.voltage_signal
                 )
 
+        self.d_f = self.fatigue_history
+
         self.V_degradation = (
-            steady_factor * self.calc_steady_degradation()
-            + onoff_factor * self.calc_onoff_degradation()
-            + fatigue_factor * self.fatigue_history
+            self.calc_steady_degradation()
+            + self.calc_onoff_degradation()
+            + self.fatigue_history
         )
 
     def update_temperature(self, I, V):
@@ -321,7 +319,7 @@ class Stack(FromDictMixin):
         next_state = x_kp1
         H2_mfr_actual = y_kp1
 
-        return next_state, H2_mfr_actual
+        return next_state[0][0], H2_mfr_actual[0][0]
 
     def calc_state_space(self):
         """

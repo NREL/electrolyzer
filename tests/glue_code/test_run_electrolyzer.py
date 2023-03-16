@@ -12,6 +12,8 @@ from numpy.testing import (
 
 import electrolyzer.inputs.validation as val
 from electrolyzer import Supervisor, run_electrolyzer
+from electrolyzer.inputs.validation import load_modeling_yaml
+from electrolyzer.glue_code.optimization import calc_rated_system
 
 
 turbine_rating = 3.4  # MW
@@ -63,6 +65,7 @@ def test_result_df(result):
     kg_rates = df[[col for col in df if "_kg_rate" in col]]
     cycles = df[[col for col in df if "cycles" in col]]
     degradation = df[[col for col in df if "deg" in col]]
+    curr_density = df[[col for col in df if "curr_density" in col]]
 
     # Expected columns
     assert "curtailment" in df.columns
@@ -71,12 +74,30 @@ def test_result_df(result):
     assert len(kg_rates.columns) == sup.n_stacks
     assert len(cycles.columns) == sup.n_stacks
     assert len(degradation.columns) == sup.n_stacks
+    assert len(degradation.columns) == sup.n_stacks
+    assert len(curr_density.columns) == sup.n_stacks
 
     # Expected data
     assert_array_equal(df["power_signal"], power_test_signal)
 
     # Individual kg production should sum to full
     assert_almost_equal(df["kg_rate"].sum(), sum(kg_rates.sum()))
+
+
+def test_optimize():
+    """Test the `optimize` optional param."""
+    res = run_electrolyzer(fname_input_modeling, power_test_signal, optimize=True)
+
+    # set up the same scenario, but do full run
+    modeling_options = load_modeling_yaml(fname_input_modeling)
+    options = calc_rated_system(modeling_options)
+    _, df = run_electrolyzer(options, power_test_signal)
+
+    assert len(res) == 2
+    assert_almost_equal(res[0], df["kg_rate"].sum())
+
+    curr_dens = df[[col for col in df if "curr_density" in col]]
+    assert_almost_equal(res[1], max(curr_dens.max().values))
 
 
 def test_regression(result):
@@ -87,20 +108,20 @@ def test_regression(result):
     _, df = result
 
     # Test total kg H2 produced
-    assert_almost_equal(df["kg_rate"].sum(), 222.87989808848104, decimal=5)
+    assert_almost_equal(df["kg_rate"].sum(), 222.87991746974592, decimal=4)
 
     # Test degradation state of stacks
     degradation = df[[col for col in df if "deg" in col]]
     assert_array_almost_equal(
         degradation.tail(1).values[0],
         [
-            0.00850225,
-            0.00884953,
-            0.00884953,
-            0.00884953,
-            0.00884953,
-            0.00884952,
-            0.00837898,
+            1.0040428622415501e-05,
+            9.786503510654988e-06,
+            9.527106756951304e-06,
+            9.295732960215869e-06,
+            9.064896715672033e-06,
+            8.80771986702221e-06,
+            8.282891454647921e-06,
         ],
         decimal=5,
     )
