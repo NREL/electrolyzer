@@ -85,20 +85,21 @@ class Stack(FromDictMixin):
     stack_on: bool = field(init=False, default=False)
     stack_waiting: bool = field(init=False, default=False)
 
+    # [s] 10 minute base turn on delay, for large time steps
+    base_turn_on_delay: float = 600
+
     # [s] 10 minute time delay for PEM electrolyzer startup procedure
-    turn_on_delay: float = 600
+    # (set in __attrs_post_init__)
+    turn_on_delay: float = field(init=False)
 
     # keep track of when the stack was last turned on
-    turn_on_time: float = field(init=False, default=0)
+    turn_on_time: float = field(init=False)
 
     # keep track of when the stack was last turned off
-    turn_off_time: float = field(init=False, default=-1000)
+    turn_off_time: float = field(init=False)
 
     # wait time for partial startup procedure (set in __attrs_post_init)
     wait_time: float = field(init=False)
-
-    # # [s] simulation time step
-    # dt: float = 1
 
     # [s] total time of simulation
     time: float = field(init=False, default=0)
@@ -110,6 +111,9 @@ class Stack(FromDictMixin):
 
     # state space, (set in __attrs_post_init)
     DTSS: NDArrayFloat = field(init=False)
+
+    # whether 1st order dynamics should be ignored according to dt size
+    ignore_dynamics: bool = field(init=False, default=False)
 
     def __attrs_post_init__(self) -> None:
         # Stack parameters #
@@ -123,7 +127,25 @@ class Stack(FromDictMixin):
         # Stack dynamics #
         ##################
 
-        self.wait_time = self.turn_on_time
+        # If the time step is bigger than the 1st order time constant, ignore dynamics
+        if self.dt > self.tau:
+            self.ignore_dynamics = True
+
+        # Remove turn on delay for large time steps
+        if self.dt > 2 * self.base_turn_on_delay:
+            self.turn_on_delay = 0
+        else:
+            self.turn_on_delay = self.base_turn_on_delay
+
+        self.turn_on_time = 0
+        self.turn_off_time = -self.turn_on_delay
+
+        self.wait_time = np.min(
+            [
+                (self.turn_on_time - self.turn_off_time),
+                self.turn_on_delay,
+            ]
+        )
 
         # [kW] nameplate power rating
         self.stack_rating_kW = self.stack_rating_kW or self.calc_stack_power(
@@ -309,11 +331,16 @@ class Stack(FromDictMixin):
 
         This is really just a filter on the steady state mfr from time step to time step
         """
-        x_k = stack_state
-        x_kp1 = self.DTSS[0] * x_k + self.DTSS[1] * H2_mfr_ss
-        y_kp1 = self.DTSS[2] * x_k + self.DTSS[3] * H2_mfr_ss
-        next_state = x_kp1
-        H2_mfr_actual = y_kp1
+
+        if not self.ignore_dynamics:
+            x_k = stack_state
+            x_kp1 = self.DTSS[0] * x_k + self.DTSS[1] * H2_mfr_ss
+            y_kp1 = self.DTSS[2] * x_k + self.DTSS[3] * H2_mfr_ss
+            next_state = x_kp1
+            H2_mfr_actual = y_kp1
+        else:
+            H2_mfr_actual = H2_mfr_ss
+            next_state = self.stack_state
 
         return next_state, H2_mfr_actual
 
@@ -335,7 +362,7 @@ class Stack(FromDictMixin):
             return
 
         if self.stack_waiting:
-            if (self.turn_on_time + self.wait_time) < self.time:
+            if (self.turn_on_time + self.wait_time) <= self.time:
                 self.stack_waiting = False
                 self.stack_on = True
 

@@ -66,8 +66,8 @@ def test_init(mocker):
     assert stack.stack_waiting is False
     assert stack.turn_on_delay == 600
     assert stack.turn_on_time == 0
-    assert stack.turn_off_time == -1000
-    assert stack.wait_time == stack.turn_on_time
+    assert stack.turn_off_time < 0
+    assert stack.wait_time > 0
     assert stack.dt == 1.0
     assert stack.time == 0
     assert stack.tau == 5.0
@@ -337,6 +337,7 @@ def test_turn_stack_off(stack: Stack):
     assert stack.cycle_count == 0
 
     stack.stack_on = True
+    stack.time = 800
     stack.turn_stack_off()
     assert stack.turn_off_time == stack.time
     assert stack.stack_on is False
