@@ -332,15 +332,15 @@ class Stack(FromDictMixin):
         This is really just a filter on the steady state mfr from time step to time step
         """
 
-        if not self.ignore_dynamics:
+        if self.ignore_dynamics:
+            H2_mfr_actual = H2_mfr_ss
+            next_state = self.stack_state
+        else:
             x_k = stack_state
             x_kp1 = self.DTSS[0] * x_k + self.DTSS[1] * H2_mfr_ss
             y_kp1 = self.DTSS[2] * x_k + self.DTSS[3] * H2_mfr_ss
             next_state = x_kp1
             H2_mfr_actual = y_kp1
-        else:
-            H2_mfr_actual = H2_mfr_ss
-            next_state = self.stack_state
 
         return next_state, H2_mfr_actual
 
