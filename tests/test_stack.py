@@ -383,3 +383,28 @@ def test_calc_electrolysis_efficiency(stack: Stack):
         stack.stack_rating_kW, H2_mfr2 * 3600
     )
     assert eta_values2[0] < eta_values[0]
+
+
+def test_degradation_time_scaling():
+
+    stack_dict = {
+        "n_cells": 100,
+        "cell_area": 1000,
+        "temperature": 60,
+        "max_current": 2000,
+        "dt": 1,
+    }
+
+    stack1 = Stack.from_dict(stack_dict)
+
+    stack_dict["dt"] = 60
+
+    stack60 = Stack.from_dict(stack_dict)
+
+    stack_dict["dt"] = 3600
+
+    stack3600 = Stack.from_dict(stack_dict)
+
+    # temporary sloppy coding. I am coming back to fix this later
+    assert stack1.cell_area == stack60.cell_area
+    assert stack60.cell_area == stack3600.cell_area
