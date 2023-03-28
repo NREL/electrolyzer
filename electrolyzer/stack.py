@@ -340,13 +340,13 @@ class Stack(FromDictMixin):
             x_k = stack_state
             x_kp1 = self.DTSS[0] * x_k + self.DTSS[1] * H2_mfr_ss
             y_kp1 = self.DTSS[2] * x_k + self.DTSS[3] * H2_mfr_ss
-            next_state = x_kp1
-            H2_mfr_actual = y_kp1
+            next_state = x_kp1[0][0]
+            H2_mfr_actual = y_kp1[0][0]
         else:
             H2_mfr_actual = H2_mfr_ss
             next_state = self.stack_state
 
-        return next_state[0][0], H2_mfr_actual[0][0]
+        return next_state, H2_mfr_actual
 
     def calc_state_space(self):
         """
