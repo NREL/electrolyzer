@@ -111,7 +111,7 @@ class Supervisor(FromDictMixin):
             self.eager_on = self.control["policy"]["eager_on"]
             self.eager_off = self.control["policy"]["eager_off"]
             self.sequential = self.control["policy"]["sequential"]
-            self.even_dist = self.control["policy"]["even_distribution"]
+            self.even_dist = self.control["policy"]["even_dist"]
             self.baseline = self.control["policy"]["baseline"]
 
         self.active_constant = np.zeros(self.n_stacks)
@@ -145,13 +145,6 @@ class Supervisor(FromDictMixin):
         for i in range(self.n_stacks):
             stacks.append(Stack.from_dict(self.stack))
             self.stack_rotation.append(i)
-            print(
-                "electrolyzer stack ",
-                i + 1,
-                "out of ",
-                self.n_stacks,
-                "has been initialized",
-            )
         return stacks
 
     def update_stack_status(self):
@@ -304,9 +297,13 @@ class Supervisor(FromDictMixin):
                         self.stack_rotation[0]
                     ]
 
-        new_stack_power = (
-            np.ones((self.n_stacks)) * power_in / sum(self.active + self.waiting)
-        )
+        if sum(self.active + self.waiting) > 0:
+            new_stack_power = (
+                np.ones((self.n_stacks)) * power_in / sum(self.active + self.waiting)
+            )
+        else:
+            new_stack_power = np.zeros(self.n_stacks)
+
         if (new_stack_power[0] / 1000) > (self.stack_rating_kW):
             curtailed_wind = (
                 new_stack_power[0] - (self.stack_rating_kW * 1000)
@@ -755,7 +752,7 @@ class Supervisor(FromDictMixin):
                 P_i[i] += self.stack_min_power
                 P_avail -= self.stack_min_power
 
-        if self.even_dist & (sum(self.active) > 0):
+        if (self.even_dist or self.baseline) & (sum(self.active) > 0):
             P_indv = P_avail / sum(self.active)  # check this if power gets too large
             for i, a in enumerate(self.active):
                 if a:
