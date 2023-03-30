@@ -385,7 +385,7 @@ def test_calc_electrolysis_efficiency(stack: Stack):
     assert eta_values2[0] < eta_values[0]
 
 
-def test_degradation_time_scaling():
+def test_dt_behavior():
 
     stack_dict = {
         "n_cells": 100,
@@ -396,15 +396,38 @@ def test_degradation_time_scaling():
     }
 
     stack1 = Stack.from_dict(stack_dict)
+    stack1.cell_voltage = 1.5
 
     stack_dict["dt"] = 60
-
     stack60 = Stack.from_dict(stack_dict)
+    stack60.cell_voltage = 1.5
 
     stack_dict["dt"] = 3600
-
     stack3600 = Stack.from_dict(stack_dict)
+    stack3600.cell_voltage = 1.5
 
-    # temporary sloppy coding. I am coming back to fix this later
-    assert stack1.cell_area == stack60.cell_area
-    assert stack60.cell_area == stack3600.cell_area
+    # Check that timescale specific attributes were initialized correctly
+    assert stack1.dt == 1
+    assert stack60.dt == 60
+    assert stack3600.dt == 3600
+
+    assert not stack1.ignore_dynamics
+    assert stack60.ignore_dynamics
+    assert stack3600.ignore_dynamics
+
+    assert stack1.turn_on_delay == 600
+    assert stack60.turn_on_delay == 600
+    assert stack3600.turn_on_delay == 0
+
+    assert stack1.wait_time > 0
+    assert stack60.wait_time > 0
+    assert stack3600.wait_time == 0
+
+    # The steady degfradation calculation should change with the change in dt
+    stack1.calc_steady_degradation()
+    stack60.calc_steady_degradation()
+    stack3600.calc_steady_degradation()
+
+    assert stack1.d_s == 2.126068935e-10
+    assert stack60.d_s == 1.2756413610000001e-08
+    assert stack3600.d_s == 7.653848166e-07
