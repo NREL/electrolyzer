@@ -410,10 +410,6 @@ def test_dt_behavior():
     assert stack60.dt == 60
     assert stack3600.dt == 3600
 
-    assert not stack1.ignore_dynamics
-    assert stack60.ignore_dynamics
-    assert stack3600.ignore_dynamics
-
     assert stack1.turn_on_delay == 600
     assert stack60.turn_on_delay == 600
     assert stack3600.turn_on_delay == 0
@@ -430,3 +426,28 @@ def test_dt_behavior():
     assert stack1.d_s == 2.126068935e-10
     assert stack60.d_s == 1.2756413610000001e-08
     assert stack3600.d_s == 7.653848166e-07
+
+    # stack.update_dynamics() should only perform state space calculations if dt is
+    # small enough
+    assert not stack1.ignore_dynamics
+    assert stack60.ignore_dynamics
+    assert stack3600.ignore_dynamics
+
+    H2_mfr = 0.0015
+    stack_state = 0.001
+
+    stack1.stack_state = stack_state
+    stack60.stack_state = stack_state
+    stack3600.stack_state = stack_state
+
+    next_state1, H2_mfr1 = stack1.update_dynamics(H2_mfr, stack_state)
+    next_state60, H2_mfr60 = stack60.update_dynamics(H2_mfr, stack_state)
+    next_state3600, H2_mfr3600 = stack3600.update_dynamics(H2_mfr, stack_state)
+
+    assert H2_mfr1 != H2_mfr
+    assert H2_mfr60 == H2_mfr
+    assert H2_mfr3600 == H2_mfr
+
+    assert next_state1 != stack_state
+    assert next_state60 == stack_state
+    assert next_state3600 == stack_state
