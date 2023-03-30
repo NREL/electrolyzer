@@ -15,8 +15,6 @@ from electrolyzer import Supervisor, run_electrolyzer
 from electrolyzer.inputs.validation import load_modeling_yaml
 from electrolyzer.glue_code.optimization import calc_rated_system
 
-
-
 turbine_rating = 3.4  # MW
 
 # Create cosine test signal
