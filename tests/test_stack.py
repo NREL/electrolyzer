@@ -386,7 +386,6 @@ def test_calc_electrolysis_efficiency(stack: Stack):
 
 
 def test_dt_behavior():
-
     stack_dict = {
         "n_cells": 100,
         "cell_area": 1000,
