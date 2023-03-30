@@ -96,10 +96,10 @@ class Stack(FromDictMixin):
     turn_on_delay: float = field(init=False)
 
     # keep track of when the stack was last turned on
-    turn_on_time: float = field(init=False, default=0)
+    turn_on_time: float = field(init=False)
 
     # keep track of when the stack was last turned off
-    turn_off_time: float = field(init=False, default=-1000)
+    turn_off_time: float = field(init=False)
 
     # wait time for partial startup procedure (set in __attrs_post_init)
     wait_time: float = field(init=False)
@@ -185,7 +185,7 @@ class Stack(FromDictMixin):
 
             self.update_temperature(I, V)
             self.update_degradation()
-            power_left -= self.calc_stack_power(I) * 1e3
+            power_left -= self.calc_stack_power(I, V) * 1e3
             H2_mfr = self.cell.calc_mass_flow_rate(I) * self.n_cells
             self.stack_state, H2_mfr = self.update_dynamics(H2_mfr, self.stack_state)
 
@@ -343,11 +343,16 @@ class Stack(FromDictMixin):
 
         This is really just a filter on the steady state mfr from time step to time step
         """
-        x_k = stack_state
-        x_kp1 = self.DTSS[0] * x_k + self.DTSS[1] * H2_mfr_ss
-        y_kp1 = self.DTSS[2] * x_k + self.DTSS[3] * H2_mfr_ss
-        next_state = x_kp1
-        H2_mfr_actual = y_kp1
+
+        if not self.ignore_dynamics:
+            x_k = stack_state
+            x_kp1 = self.DTSS[0] * x_k + self.DTSS[1] * H2_mfr_ss
+            y_kp1 = self.DTSS[2] * x_k + self.DTSS[3] * H2_mfr_ss
+            next_state = x_kp1[0][0]
+            H2_mfr_actual = y_kp1[0][0]
+        else:
+            H2_mfr_actual = H2_mfr_ss
+            next_state = self.stack_state
 
         return next_state, H2_mfr_actual
 
@@ -369,7 +374,7 @@ class Stack(FromDictMixin):
             return
 
         if self.stack_waiting:
-            if (self.turn_on_time + self.wait_time) < self.time:
+            if (self.turn_on_time + self.wait_time) <= self.time:
                 self.stack_waiting = False
                 self.stack_on = True
 
@@ -402,12 +407,15 @@ class Stack(FromDictMixin):
             ]
         )
 
-    def calc_stack_power(self, Idc):
+    def calc_stack_power(self, Idc, V=None):
         """
-        Idc [A]: stack current
-        return :: Pdc [kW]: stack power
+        Args:
+            Idc [A]: stack current
+            V (optional): stack voltage
+            return :: Pdc [kW]: stack power
         """
-        Pdc = Idc * self.cell.calc_cell_voltage(Idc, self.temperature) * self.n_cells
+        V = V or (self.cell.calc_cell_voltage(Idc, self.temperature) * self.n_cells)
+        Pdc = Idc * V
         Pdc = Pdc / 1000.0  # [kW]
 
         return Pdc

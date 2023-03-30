@@ -53,10 +53,9 @@ class Supervisor(FromDictMixin):
 
     # again, only for sequential controller
     variable_stack: int = field(init=False, default=0)
-    stack_rotation: NDArrayInt = field(init=False, default=[])
+    stack_rotation: NDArrayInt = field(init=False)
     stacks_on: int = field(init=False, default=0)
-    stacks_waiting: int = field(init=False, default=0)
-    stacks_off: NDArrayInt = field(init=False, default=[])
+    # stacks_off: NDArrayInt = field(init=False, default=[])
     stacks_waiting_vec: NDArrayInt = field(init=False)
     deg_state: NDArrayFloat = field(init=False)
     filter_width: int = field(init=False)
@@ -119,6 +118,7 @@ class Supervisor(FromDictMixin):
         self.active_constant = np.zeros(self.n_stacks)
         self.active = np.zeros(self.n_stacks)
         self.waiting = np.zeros(self.n_stacks)
+        self.stack_rotation = np.arange(self.n_stacks, dtype=int)
         self.stacks_waiting_vec = np.zeros((self.n_stacks))
         self.deg_state = np.zeros(self.n_stacks)
         self.stacks = self.create_electrolyzer_stacks()
@@ -137,16 +137,11 @@ class Supervisor(FromDictMixin):
         else:
             self.n_stacks * self.stack_rating_kW / 1e3
 
-    # TODO: query stacks for on/off status instead of maintaining arrays
-
-    def get_stacks_waiting(self):
-        return [int(s.waiting) for s in self.stacks]
-
-    def get_stacks_on(self):
-        return [int(s.active) for s in self.stacks]
-
-    def get_stacks_off(self):
-        return [not int(s.active) for s in self.stacks]
+        # Establish system rating
+        if "system_rating_MW" in self.control:
+            self.system_rating_MW = self.control["system_rating_MW"]
+        else:
+            self.n_stacks * self.stack_rating_kW / 1e3
 
     def create_electrolyzer_stacks(self):
         # initialize electrolyzer objects
@@ -241,7 +236,7 @@ class Supervisor(FromDictMixin):
                     on_or_waiting[i] = 1
 
             # which stacks the controller thinks are on and which are actually on
-            mismatch = self.active - on_or_waiting
+            mismatch = (self.active + self.waiting) - on_or_waiting
 
             for i in range(len(mismatch)):
                 # this means the controller wants an electrolyzer on and that
@@ -268,7 +263,6 @@ class Supervisor(FromDictMixin):
 
         power_left = 0
         H2_mass_out = 0
-        self.stacks_waiting = 0
         self.stacks_on = 0
         H2_mass_flow_rate = np.zeros((self.n_stacks))
 
