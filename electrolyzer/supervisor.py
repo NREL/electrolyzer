@@ -149,7 +149,7 @@ class Supervisor(FromDictMixin):
         self.stack["dt"] = self.dt
         for i in range(self.n_stacks):
             stacks[i] = Stack.from_dict(self.stack)
-            self.stack_rotation.append(i)
+            self.stack_rotation[i] = i
             # TODO: replace with proper logging
             # print(
             #     "electrolyzer stack ",
