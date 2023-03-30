@@ -81,12 +81,19 @@ class Stack(FromDictMixin):
     # Stack dynamics #
     ##################
 
+    # Current (A)
+    I: float = field(init=False, default=0.0)
+
     # 10 minute startup procedure
     stack_on: bool = field(init=False, default=False)
     stack_waiting: bool = field(init=False, default=False)
 
+    # [s] 10 minute base turn on delay, for large time steps
+    base_turn_on_delay: float = 600
+
     # [s] 10 minute time delay for PEM electrolyzer startup procedure
-    turn_on_delay: float = 600
+    # (set in __attrs_post_init__)
+    turn_on_delay: float = field(init=False)
 
     # keep track of when the stack was last turned on
     turn_on_time: float = field(init=False, default=0)
@@ -96,9 +103,6 @@ class Stack(FromDictMixin):
 
     # wait time for partial startup procedure (set in __attrs_post_init)
     wait_time: float = field(init=False)
-
-    # # [s] simulation time step
-    # dt: float = 1
 
     # [s] total time of simulation
     time: float = field(init=False, default=0)
@@ -110,6 +114,9 @@ class Stack(FromDictMixin):
 
     # state space, (set in __attrs_post_init)
     DTSS: NDArrayFloat = field(init=False)
+
+    # whether 1st order dynamics should be ignored according to dt size
+    ignore_dynamics: bool = field(init=False, default=False)
 
     def __attrs_post_init__(self) -> None:
         # Stack parameters #
@@ -123,7 +130,25 @@ class Stack(FromDictMixin):
         # Stack dynamics #
         ##################
 
-        self.wait_time = self.turn_on_time
+        # If the time step is bigger than the 1st order time constant, ignore dynamics
+        if self.dt > self.tau:
+            self.ignore_dynamics = True
+
+        # Remove turn on delay for large time steps
+        if self.dt > 2 * self.base_turn_on_delay:
+            self.turn_on_delay = 0
+        else:
+            self.turn_on_delay = self.base_turn_on_delay
+
+        self.turn_on_time = 0
+        self.turn_off_time = -self.turn_on_delay
+
+        self.wait_time = np.min(
+            [
+                (self.turn_on_time - self.turn_off_time),
+                self.turn_on_delay,
+            ]
+        )
 
         # [kW] nameplate power rating
         self.stack_rating_kW = self.stack_rating_kW or self.calc_stack_power(
@@ -147,11 +172,13 @@ class Stack(FromDictMixin):
         """
         self.update_status()
 
+        I = electrolyzer_model((P_in / 1e3, self.temperature), *self.fit_params)
+        V = self.cell.calc_cell_voltage(I, self.temperature)
+
         if self.stack_on:
             power_left = P_in
 
-            I = electrolyzer_model((P_in / 1e3, self.temperature), *self.fit_params)
-            V = self.cell.calc_cell_voltage(I, self.temperature)
+            self.I = I
 
             if self.include_degradation_penalty:
                 V += self.V_degradation
@@ -168,8 +195,7 @@ class Stack(FromDictMixin):
         else:
             if self.stack_waiting:
                 self.uptime += self.dt
-                I = electrolyzer_model((P_in / 1e3, self.temperature), *self.fit_params)
-                V = self.cell.calc_cell_voltage(I, self.temperature)
+                self.I = I
                 self.update_temperature(I, V)
                 self.update_degradation()
                 power_left = 0
@@ -279,17 +305,24 @@ class Stack(FromDictMixin):
 
     def update_degradation(self):
         if self.hour_change:  # only calculate fatigue degradation every hour
+
+            # fatigue only counts the nonzero voltage fluctuations since transition to
+            # and from V = 0 are captured with on/off cycles.
             voltage_signal_nz = self.voltage_signal[np.nonzero(self.voltage_signal)]
 
-            voltage_perc = (max(voltage_signal_nz) - min(voltage_signal_nz)) / max(
-                voltage_signal_nz
-            )
+            # to avoid a divide by zero, only proceed if there are nonzero values in the
+            # voltage signal.
+            if len(voltage_signal_nz) > 0:
 
-            # Only penalize if more than 5% difference in voltage
-            if voltage_perc > 0.05:
-                self.fatigue_history = self.calc_fatigue_degradation(
-                    self.voltage_signal
+                voltage_perc = (max(voltage_signal_nz) - min(voltage_signal_nz)) / max(
+                    voltage_signal_nz
                 )
+
+                # Only penalize if more than 5% difference in voltage
+                if voltage_perc > 0.05:
+                    self.fatigue_history = self.calc_fatigue_degradation(
+                        self.voltage_signal
+                    )
 
         self.d_f = self.fatigue_history
 
