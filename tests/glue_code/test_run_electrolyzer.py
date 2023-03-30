@@ -11,8 +11,10 @@ from numpy.testing import (
 )
 
 import electrolyzer.inputs.validation as val
-from electrolyzer import Supervisor
-from electrolyzer.glue_code.run_electrolyzer import run_electrolyzer
+from electrolyzer import Supervisor, run_electrolyzer
+from electrolyzer.inputs.validation import load_modeling_yaml
+from electrolyzer.glue_code.optimization import calc_rated_system
+
 
 
 turbine_rating = 3.4  # MW
@@ -91,6 +93,7 @@ def test_result_df(result):
     kg_rates = df[[col for col in df if "_kg_rate" in col]]
     cycles = df[[col for col in df if "cycles" in col]]
     degradation = df[[col for col in df if "deg" in col]]
+    curr_density = df[[col for col in df if "curr_density" in col]]
 
     # Expected columns
     assert "curtailment" in df.columns
@@ -99,12 +102,30 @@ def test_result_df(result):
     assert len(kg_rates.columns) == sup.n_stacks
     assert len(cycles.columns) == sup.n_stacks
     assert len(degradation.columns) == sup.n_stacks
+    assert len(degradation.columns) == sup.n_stacks
+    assert len(curr_density.columns) == sup.n_stacks
 
     # Expected data
     assert_array_equal(df["power_signal"], power_test_signal)
 
     # Individual kg production should sum to full
     assert_almost_equal(df["kg_rate"].sum(), sum(kg_rates.sum()))
+
+
+def test_optimize():
+    """Test the `optimize` optional param."""
+    res = run_electrolyzer(fname_input_modeling, power_test_signal, optimize=True)
+
+    # set up the same scenario, but do full run
+    modeling_options = load_modeling_yaml(fname_input_modeling)
+    options = calc_rated_system(modeling_options)
+    _, df = run_electrolyzer(options, power_test_signal)
+
+    assert len(res) == 2
+    assert_almost_equal(res[0], df["kg_rate"].sum())
+
+    curr_dens = df[[col for col in df if "curr_density" in col]]
+    assert_almost_equal(res[1], max(curr_dens.max().values))
 
 
 def test_regression(result):
