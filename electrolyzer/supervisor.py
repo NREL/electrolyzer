@@ -18,11 +18,14 @@ class Supervisor(FromDictMixin):
     stack: dict
     costs: dict  # TODO: should this be connected here?
     control: dict
+    initialize: bool = False
+    initial_power_kW: float = 0.0
 
     name: str = field(default="electrolyzer_001")
     description: str = field(default="A PEM electrolyzer model")
 
     control_type: str = field(init=False, default="BaselineDeg")
+    n_stacks: int = field(init=False, default=1)
 
     # decision-based controller policies
     eager_on: bool = field(init=False, default=False)
@@ -31,9 +34,8 @@ class Supervisor(FromDictMixin):
     even_dist: bool = field(init=False, default=False)
     baseline: bool = field(init=False, default=True)
 
-    n_stacks: int = field(init=False, default=1)
-
     stack_min_power: float = field(init=False)
+    system_rating_MW: float = field(init=False)
     stack_rating_kW: float = field(init=False)
     stack_rating: float = field(init=False)
 
@@ -126,6 +128,14 @@ class Supervisor(FromDictMixin):
         self.stack_rating_kW = self.stacks[0].stack_rating_kW
         self.stack_rating = self.stacks[0].stack_rating
         self.stack_min_power = self.stacks[0].min_power
+        if self.initialize:
+            self.initialize_plant_stacks()
+
+        # Establish system rating
+        if "system_rating_MW" in self.control:
+            self.system_rating_MW = self.control["system_rating_MW"]
+        else:
+            self.n_stacks * self.stack_rating_kW / 1e3
 
     # TODO: query stacks for on/off status instead of maintaining arrays
 
@@ -140,11 +150,18 @@ class Supervisor(FromDictMixin):
 
     def create_electrolyzer_stacks(self):
         # initialize electrolyzer objects
-        stacks = []
+        stacks = np.empty(self.n_stacks, Stack)
         self.stack["dt"] = self.dt
         for i in range(self.n_stacks):
-            stacks.append(Stack.from_dict(self.stack))
-            self.stack_rotation.append(i)
+            stacks[i] = Stack.from_dict(self.stack)
+            # TODO: replace with proper logging
+            # print(
+            #     "electrolyzer stack ",
+            #     i + 1,
+            #     "out of ",
+            #     self.n_stacks,
+            #     "has been initialized",
+            # )
         return stacks
 
     def update_stack_status(self):
@@ -159,6 +176,23 @@ class Supervisor(FromDictMixin):
             else:
                 self.waiting[i] = 0
                 self.stacks_waiting_vec[i] = 0
+
+    def initialize_plant_stacks(self):
+        # TODO: decide how many stacks should be turned on
+        stack_number = round(self.initial_power_kW / self.stack_rating_kW) + 1
+        if stack_number > self.n_stacks:
+            stack_number = self.n_stacks
+        elif stack_number < 0:
+            print("Error: initial stack number cannot be less than zero")
+            return
+        elif self.initial_power_kW == 0 or self.initial_power_kW < (
+            self.stack_min_power / 1e3
+        ):
+            stack_number = 0
+
+        for i in range(stack_number):
+            self.stacks[i].stack_on = True
+        self.update_stack_status()
 
     def run_control(self, power_in):
         """

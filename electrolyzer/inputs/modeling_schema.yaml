@@ -30,6 +30,14 @@ properties:
                 type: number
                 default: 1.0
                 description: simulation time step
+            initialize:
+                type: boolean
+                default: False
+                description: Determines whether the electrolyzer starts from an initial power (True), or from zero (False)
+            initial_power_kW:
+                type: number
+                default: 0.0
+                description: starting power for an initialized electrolyzer plant
 
             stack:
                 type: object
@@ -69,6 +77,10 @@ properties:
                 default: {}
                 description: Set control properties for electrolyzers
                 properties:
+                    system_rating_MW:
+                        type: number
+                        description: System rating
+                        unit: MW
                     n_stacks:
                         type: integer
                         default: 1

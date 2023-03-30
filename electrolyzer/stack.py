@@ -305,7 +305,6 @@ class Stack(FromDictMixin):
 
     def update_degradation(self):
         if self.hour_change:  # only calculate fatigue degradation every hour
-
             # fatigue only counts the nonzero voltage fluctuations since transition to
             # and from V = 0 are captured with on/off cycles.
             voltage_signal_nz = self.voltage_signal[np.nonzero(self.voltage_signal)]
@@ -313,7 +312,6 @@ class Stack(FromDictMixin):
             # to avoid a divide by zero, only proceed if there are nonzero values in the
             # voltage signal.
             if len(voltage_signal_nz) > 0:
-
                 voltage_perc = (max(voltage_signal_nz) - min(voltage_signal_nz)) / max(
                     voltage_signal_nz
                 )
