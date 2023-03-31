@@ -3,17 +3,9 @@ This module defines the Hydrogen Electrolyzer control code.
 """
 import numpy as np
 import pandas as pd
-
-# import numpy.typing as npt
 from attrs import field, define
 
 from .type_dec import NDArrayFloat, FromDictMixin
-
-# from .stack import Stack
-from .supervisor import Supervisor
-
-
-# from electrolyzer.type_dec import NDArrayInt, NDArrayFloat, FromDictMixin
 
 
 @define
@@ -28,7 +20,17 @@ class LCOH(FromDictMixin):
     capex: dict
     finances: dict
 
-    supervisor: Supervisor = field(init=False)
+    # Simulation result details
+    dt: float
+    sim_length_hrs: float
+    plant_rating_kW: float
+    n_stacks: int
+    stack_rating_kW: float
+    deg_state: NDArrayFloat
+    electrical_feedstock_cost: float
+    power_kW_avail: NDArrayFloat
+    power_kW_curtailed: NDArrayFloat
+    kg_produced: NDArrayFloat
 
     plant_life: int = field(init=False, default=25)
     pem_location: str = field(init=False, default="onshore")
@@ -45,18 +47,6 @@ class LCOH(FromDictMixin):
     IF: float = field(init=False, default=0.33)
     DR: float = field(init=False, default=0.04)
     plant_life_yrs: float = field(init=False, default=25)
-
-    sim_length_hrs: float = field(init=False)
-    plant_rating_kW: float = field(init=False)
-    n_stacks: int = field(init=False)
-    stack_rating_kW: float = field(init=False)
-    d_sim: NDArrayFloat = field(init=False)
-
-    power_kW_avail: NDArrayFloat = field(init=False)
-    power_kW_curtailed: NDArrayFloat = field(init=False)
-    kg_produced: NDArrayFloat = field(init=False)
-    electrical_feedstock_cost: float = field(init=False)
-    dt: float = field(init=False, default=1)
 
     def __attrs_post_init__(self) -> None:
         """
@@ -146,35 +136,6 @@ class LCOH(FromDictMixin):
 
         self.IF = self.finances["install_factor"]
         self.DR = self.finances["discount_rate"]
-        self.sim_length_hrs = 0
-        self.plant_rating_kW = 0
-        self.n_stacks = 0
-        self.stack_rating_kW = 0
-
-        self.d_sim = np.zeros(7)
-        self.power_kW_avail = np.zeros(7)
-        self.power_kW_curtailed = np.zeros(7)
-        self.kg_produced = np.zeros(7)
-
-        self.electrical_feedstock_cost = 0.0
-        self.dt = 0
-
-    def get_simulation_info(self, elec_sys, elec_df, lcoe):
-        # used because I'm kind of bad at coding
-        # and I needed these inputs for the analysis
-        # basically the same as an __init__ thing without
-        # the weird dictionary situation :)
-        []
-        self.dt = elec_sys.dt
-        self.sim_length_hrs = len(elec_df["power_signal"]) * elec_sys.dt / 3600
-        self.plant_rating_kW = elec_sys.n_stacks * elec_sys.stack_rating_kW
-        self.n_stacks = elec_sys.n_stacks
-        self.stack_rating_kW = elec_sys.stack_rating_kW
-        self.d_sim = elec_sys.deg_state
-        self.power_kW_avail = elec_df["power_signal"].values / 1000  # [W]
-        self.power_kW_curtailed = elec_df["curtailment"].values / 1000
-        self.kg_produced = elec_df["kg_rate"].values  # kg
-        self.electrical_feedstock_cost = lcoe  # [$/kWh]
 
     def pem_capex_calc(self, sys_rating_oi_kW):
         # PEM capex using cost scaling
@@ -271,7 +232,7 @@ class LCOH(FromDictMixin):
         # end of life voltage value
         d_eol = self.stack_replacement["d_eol"]
         # time until death (below) [hrs]
-        t_eod = (d_eol / self.d_sim) * self.sim_length_hrs
+        t_eod = (d_eol / self.deg_state) * self.sim_length_hrs
         return t_eod
 
     def calc_stack_replacement_schedule(self):
@@ -399,17 +360,15 @@ class LCOH(FromDictMixin):
         total_annual_costs = annual_OM + annual_feedstock + annual_stackrep
         lcoh = (tot_capex + np.sum(total_annual_costs)) / np.sum(annual_h2)
 
-        df_data = pd.concat(
-            [
-                pd.Series(annual_reduction, name="Annual Discount"),
-                pd.Series(annual_h2, name="H2 [kg]"),
-                pd.Series(annual_OM, name="OM [$]"),
-                pd.Series(annual_feedstock, name="feedstock [$]"),
-                pd.Series(annual_stackrep, name="Stack Replacement [$]"),
-                pd.Series(total_annual_costs, name="total annual cost [$]"),
-            ],
-            axis=1,
-        )
+        data = {
+            "Annual Discount": annual_reduction,
+            "H2 [kg]": annual_h2,
+            "OM [$]": annual_OM,
+            "feedstock [$]": annual_feedstock,
+            "Stack Replacement [$]": annual_stackrep,
+            "total annual cost [$]": total_annual_costs,
+        }
+        df_data = pd.DataFrame(data)
 
         tot_Data = [
             tot_capex,
