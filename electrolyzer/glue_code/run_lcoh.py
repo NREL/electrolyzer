@@ -134,7 +134,7 @@ def _run_lcoh_full(elec_sys, elec_df, cost_sys, lcoe):
         "Stack Replacement Cost [$/kW]",
         "Stack Replacement Cost [$/stack]",
     ]
-    sr_srs = pd.Series(cost_sys.StackReplacement_summary, name="Stack Replacement")[
+    sr_srs = pd.Series(cost_sys.stack_replacement_summary, name="Stack Replacement")[
         stack_rep_keys
     ]
 
@@ -143,18 +143,18 @@ def _run_lcoh_full(elec_sys, elec_df, cost_sys, lcoe):
         "Annual H20 Cost [$]",
         "Total Feedstock Cost [$]",
     ]
-    fds_srs = pd.Series(cost_sys.Feedstock_summary, name="Feedstock")[feedstock_keys]
+    fds_srs = pd.Series(cost_sys.feedstock_summary, name="Feedstock")[feedstock_keys]
     cpx_srs = pd.concat(
         [
-            pd.Series(cost_sys.CapEx_summary["BOP"], name="BOP"),
-            pd.Series(cost_sys.CapEx_summary["PEM"], name="PEM"),
+            pd.Series(cost_sys.capex_summary["BOP"], name="BOP"),
+            pd.Series(cost_sys.capex_summary["PEM"], name="PEM"),
         ],
         axis=1,
     )
 
     raw_dict = {
         "CapEx": cpx_srs,
-        "OpEx": pd.Series(cost_sys.OpEx_summary, name="OpEx"),
+        "OpEx": pd.Series(cost_sys.opex_summary, name="OpEx"),
         "Feedstock": fds_srs,
         "Stack Replacement": sr_srs,
     }
@@ -163,11 +163,11 @@ def _run_lcoh_full(elec_sys, elec_df, cost_sys, lcoe):
     stackrep_yrly = pd.concat(
         [
             pd.Series(
-                cost_sys.StackReplacement_summary["Annual Stack Replacement Cost [$]"],
+                cost_sys.stack_replacement_summary["Annual Stack Replacement Cost [$]"],
                 name="SR-Cost [$]",
             ),
             pd.Series(
-                cost_sys.StackReplacement_schedule[
+                cost_sys.stack_replacement_schedule[
                     "Annual Number of Stacks to Replace"
                 ],
                 name="num SR/year",

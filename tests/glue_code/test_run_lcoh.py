@@ -50,5 +50,4 @@ def test_run_lcoh():
         atol=1e-4,
     )
 
-    print(calc_result[1], RESULT[1])
     assert np.isclose(calc_result[1], RESULT[1])
