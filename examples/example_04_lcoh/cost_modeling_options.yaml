@@ -12,6 +12,7 @@ electrolyzer:
         stack_rating_kW: 500
     control:
         n_stacks: 7
+        system_rating_MW: 3.5 # required for optimize=True run
         control_type: BaselineDeg # default
     costs:
         plant_params:

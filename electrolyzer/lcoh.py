@@ -107,8 +107,8 @@ class LCOH(FromDictMixin):
                 -OUPUTS: stack replacement cost per year (array of length plant_life)
         CapEx Costs:
             functions used:
-                -pem_capex_calc
-                -bop_capex_calc
+                -calc_pem_capex
+                -calc_bop_capex
             -split into BOP and PEM
                 -user_inputs:
                     capex_learning_rate
@@ -137,19 +137,19 @@ class LCOH(FromDictMixin):
         self.IF = self.finances["install_factor"]
         self.DR = self.finances["discount_rate"]
 
-    def pem_capex_calc(self, sys_rating_oi_kW):
+    def calc_pem_capex(self):
         # PEM capex using cost scaling
         lr = self.capex["capex_learning_rate"]
         b_capex = np.log2(1 - lr)
         Sr0 = self.capex["ref_size_pem"]  # ref size [kW]
         Cr0 = self.capex["ref_cost_pem"]  # ref cost [$/kW]
         # self.plant_rating_kW
-        Sr = (sys_rating_oi_kW / Sr0) ** b_capex  # scale sized
+        Sr = (self.stack_rating_kW / Sr0) ** b_capex  # scale sized
         adj_IF = 1 + self.IF * self.os
         Cr_uninstalled = Cr0 * Sr  # [$/kW]
         Cr_installed = adj_IF * Cr0 * Sr  # [$/kW]
-        capex_pem_dollars_installed = Cr_installed * sys_rating_oi_kW
-        capex_pem_dollars_uninstalled = Cr_uninstalled * sys_rating_oi_kW
+        capex_pem_dollars_installed = Cr_installed * self.stack_rating_kW
+        capex_pem_dollars_uninstalled = Cr_uninstalled * self.stack_rating_kW
         self.capex_summary["PEM"] = {
             "Uninstalled [$/kW]": Cr_uninstalled,
             "Installed [$/kW]": Cr_installed,
@@ -158,18 +158,18 @@ class LCOH(FromDictMixin):
         }
         return capex_pem_dollars_installed
 
-    def bop_capex_calc(self, sys_rating_oi_kW):
+    def calc_bop_capex(self):
         # BOP capex using cost scaling
         lr = self.capex["capex_learning_rate"]
         b_capex = np.log2(1 - lr)
         Sr0 = self.capex["ref_size_bop"]
         Cr0 = self.capex["ref_cost_bop"]
-        Sr = (sys_rating_oi_kW / Sr0) ** b_capex  # scale sized
+        Sr = (self.stack_rating_kW / Sr0) ** b_capex  # scale sized
         adj_IF = 1 + self.IF * self.os
         Cr_uninstalled = Cr0 * Sr  # [$/kW]
         Cr_installed = adj_IF * Cr0 * Sr  # [$/kW]
-        capex_bop_dollars_installed = Cr_installed * sys_rating_oi_kW
-        capex_bop_dollars_uninstalled = Cr_uninstalled * sys_rating_oi_kW
+        capex_bop_dollars_installed = Cr_installed * self.stack_rating_kW
+        capex_bop_dollars_uninstalled = Cr_uninstalled * self.stack_rating_kW
         self.capex_summary["BOP"] = {
             "Uninstalled [$/kW]": Cr_uninstalled,
             "Installed [$/kW]": Cr_installed,
@@ -185,11 +185,11 @@ class LCOH(FromDictMixin):
         # Alternative approach would be to use the plant_rating
         # instead and remove the scale factor
 
-        # pem_capex = self.pem_capex_calc(self.plant_rating_kW)
-        # bop_capex = self.bop_capex_calc(self.plant_rating_kW)
+        # pem_capex = self.calc_pem_capex(self.plant_rating_kW)
+        # bop_capex = self.calc_bop_capex(self.plant_rating_kW)
         sizeup_factor = self.plant_rating_kW / self.stack_rating_kW
-        pem_capex = sizeup_factor * self.pem_capex_calc(self.stack_rating_kW)
-        bop_capex = sizeup_factor * self.bop_capex_calc(self.stack_rating_kW)
+        pem_capex = sizeup_factor * self.calc_pem_capex()
+        bop_capex = sizeup_factor * self.calc_bop_capex()
         total_capex = pem_capex + bop_capex
         return total_capex
 

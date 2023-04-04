@@ -3,12 +3,48 @@ This module is responsible for running electrolyzer models based on YAML configu
 files.
 """
 
+import numpy as np
 import pandas as pd
 
 import electrolyzer.inputs.validation as val
-from electrolyzer import LCOH  # ESG
+from electrolyzer import LCOH, Supervisor  # ESG
 
+from .optimization import calc_rated_system
 from .run_electrolyzer import _run_electrolyzer_full
+
+
+def _run_electrolyzer_lcoh_opt(modeling_options, power_signal):
+    # This function is similar to `run_electrolyzer_opt`, but keeps track of
+    # some extra necessities for LCOH calcs.
+
+    # Tune to a desired system rating
+    options = calc_rated_system(modeling_options)
+
+    # Initialize system
+    elec_sys = Supervisor.from_dict(options["electrolyzer"])
+
+    # Define output variables
+    kg_rate = np.zeros(len(power_signal))
+    curtailment = np.zeros((len(power_signal)))
+    max_curr_density = 0.0
+
+    # Run electrolyzer simulation
+    for i in range(len(power_signal)):
+        # TODO: replace with proper logging
+        # if (i % 1000) == 0:
+        #     print('Progress', i)
+        # print(i)
+        loop_H2, loop_h2_mfr, loop_power_left, curtailed = elec_sys.run_control(
+            power_signal[i]
+        )
+
+        kg_rate[i] = loop_H2
+        curtailment[i] = curtailed / 1000000
+
+        new_curr = max([s.I / s.cell.cell_area for s in elec_sys.stacks])
+        max_curr_density = max(max_curr_density, new_curr)
+
+    return elec_sys, kg_rate, curtailment, max_curr_density
 
 
 def _run_lcoh_full(cost_sys):
@@ -81,7 +117,7 @@ def _run_lcoh_full(cost_sys):
     return lcoh_dict, lcoh
 
 
-def run_lcoh(input_modeling, power_signal, lcoe):
+def run_lcoh(input_modeling, power_signal, lcoe, optimize=False):
     """
     Runs an electrolyzer simulation based on a YAML configuration file and power
     signal input.
@@ -107,24 +143,27 @@ def run_lcoh(input_modeling, power_signal, lcoe):
         modeling_options = val.load_modeling_yaml(input_modeling)
     else:
         modeling_options = input_modeling
-    # LCOH NOT IMPLEMENTED FOR CASE WHERE OPTIMIZE=TRUE
-    # if optimize:
-    #     return _run_electrolyzer_opt(modeling_options, power_signal)
-    # step 0: initialize electorolyzer and cost systems.
-    # step 1: run the electrolyzer!
-    elec_sys, elec_df = _run_electrolyzer_full(modeling_options, power_signal)
+
+    if optimize:
+        res = _run_electrolyzer_lcoh_opt(modeling_options, power_signal)
+        elec_sys, kg_produced, curtailment, max_curr_density = res
+    else:
+        elec_sys, elec_df = _run_electrolyzer_full(modeling_options, power_signal)
+        kg_produced = elec_df["kg_rate"].values
+        curtailment = elec_df["curtailment"].values
+
     lcoh_options = modeling_options["electrolyzer"]["costs"]
     lcoh_options.update(
         {
             "dt": elec_sys.dt,
-            "sim_length_hrs": len(elec_df["power_signal"]) * elec_sys.dt / 3600,
+            "sim_length_hrs": len(power_signal) * elec_sys.dt / 3600,
             "plant_rating_kW": elec_sys.n_stacks * elec_sys.stack_rating_kW,
             "n_stacks": elec_sys.n_stacks,
             "stack_rating_kW": elec_sys.stack_rating_kW,
             "deg_state": elec_sys.deg_state,
-            "power_kW_avail": elec_df["power_signal"].values / 1000,
-            "power_kW_curtailed": elec_df["curtailment"].values / 1000,
-            "kg_produced": elec_df["kg_rate"].values,
+            "power_kW_avail": power_signal / 1000,
+            "power_kW_curtailed": curtailment / 1000,
+            "kg_produced": kg_produced,
             "electrical_feedstock_cost": lcoe,  # [$/kWh]
         }
     )
@@ -133,5 +172,8 @@ def run_lcoh(input_modeling, power_signal, lcoe):
 
     # step 2: run lcoh calculations
     lcoh_dict, lcoh = _run_lcoh_full(cost_sys)
+
+    if optimize:
+        return [np.sum(kg_produced), max_curr_density, lcoh]
 
     return lcoh_dict, lcoh

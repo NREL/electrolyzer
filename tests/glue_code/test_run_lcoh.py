@@ -3,9 +3,10 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from numpy.testing import assert_array_almost_equal
 from pandas.testing import assert_frame_equal
 
-from electrolyzer import run_lcoh
+from electrolyzer import run_lcoh, run_electrolyzer
 
 
 lcoh_breakdown = pd.DataFrame(
@@ -51,3 +52,30 @@ def test_run_lcoh():
     )
 
     assert np.isclose(calc_result[1], RESULT[1])
+
+
+def test_run_lcoh_opt():
+    fname_input_modeling = os.path.join(
+        ROOT, "examples", "example_04_lcoh", "cost_modeling_options.yaml"
+    )
+
+    turbine_rating = 3.4  # MW
+
+    # Create cosine test signal
+    test_signal_angle = np.linspace(0, 8 * np.pi, 3600 * 8 + 10)
+    base_value = (turbine_rating / 2) + 0.2
+    variation_value = turbine_rating - base_value
+    power_test_signal = (base_value + variation_value * np.cos(test_signal_angle)) * 1e6
+
+    lcoe = 44.18 * (1 / 1000)
+
+    h2_result = run_electrolyzer(fname_input_modeling, power_test_signal, optimize=True)
+    lcoh_result = run_lcoh(fname_input_modeling, power_test_signal, lcoe, optimize=True)
+
+    # h2 prod, max curr density, LCOH
+    assert len(lcoh_result) == 3
+
+    # results from regular optimize run should match
+    assert_array_almost_equal(h2_result, lcoh_result[:2])
+
+    assert np.isclose(lcoh_result[2], 4.879527731853387)
