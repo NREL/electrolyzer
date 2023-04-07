@@ -418,8 +418,8 @@ class Stack(FromDictMixin):
             V (optional): stack voltage
             return :: Pdc [kW]: stack power
         """
-        V = V or (self.cell.calc_cell_voltage(Idc, self.temperature) * self.n_cells)
-        Pdc = Idc * V
+        V = V or (self.cell.calc_cell_voltage(Idc, self.temperature))
+        Pdc = Idc * V * self.n_cells
         Pdc = Pdc / 1000.0  # [kW]
 
         return Pdc

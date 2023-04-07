@@ -149,7 +149,6 @@ class Supervisor(FromDictMixin):
         self.stack["dt"] = self.dt
         for i in range(self.n_stacks):
             stacks[i] = Stack.from_dict(self.stack)
-            self.stack_rotation[i] = i
             # TODO: replace with proper logging
             # print(
             #     "electrolyzer stack ",
@@ -295,16 +294,16 @@ class Supervisor(FromDictMixin):
 
     def power_sharing_rotation(self, power_in):
         # Control strategy that shares power between all electrolyzers equally
-        if sum(self.active + self.waiting) == 0:
+        if sum(self.active) == 0:
             P_indv = np.ones(1) * power_in / self.n_stacks
         else:
             P_indv = (
-                np.ones(1) * power_in / sum(self.active + self.waiting)
+                np.ones(1) * power_in / sum(self.active)
             )  # divide the power evenely amongst electrolyzers
         P_indv_kW = P_indv / 1000
 
         stacks_supported = min(power_in // (self.stack_rating / 2), self.n_stacks)
-        diff = int(stacks_supported - sum(self.active + self.waiting))
+        diff = int(stacks_supported - sum(self.active))
 
         # Power sharing control #
         #########################
@@ -322,14 +321,12 @@ class Supervisor(FromDictMixin):
             if P_indv_kW < (0.2 * self.stack_rating_kW):
                 if sum(self.active) > 0:
                     self.turn_off_stack(self.stack_rotation[0])
-                    self.stack_rotation = self.stack_rotation[1:] + [
-                        self.stack_rotation[0]
-                    ]
+                    self.stack_rotation = np.concatenate(
+                        [self.stack_rotation[1:], [self.stack_rotation[0]]]
+                    )
 
-        if sum(self.active + self.waiting) > 0:
-            new_stack_power = (
-                np.ones((self.n_stacks)) * power_in / sum(self.active + self.waiting)
-            )
+        if sum(self.active) > 0:
+            new_stack_power = np.ones((self.n_stacks)) * power_in / sum(self.active)
         else:
             new_stack_power = np.zeros(self.n_stacks)
 
@@ -417,9 +414,9 @@ class Supervisor(FromDictMixin):
             ) or (stack_difference < -1 and sum(self.waiting) == 0):
                 if sum(self.active) > 0 and slope < 0:
                     self.turn_off_stack(self.stack_rotation[0])
-                    self.stack_rotation = self.stack_rotation[1:] + [
-                        self.stack_rotation[0]
-                    ]
+                    self.stack_rotation = np.concatenate(
+                        [self.stack_rotation[1:], [self.stack_rotation[0]]]
+                    )
                     elec_var = self.stack_rotation[0]
                     P_indv[elec_var] = self.stack_rating_kW * 1000
                     curtailed_wind = left_over_power
@@ -673,7 +670,7 @@ class Supervisor(FromDictMixin):
                 self.n_stacks,
                 int(
                     (P_avail / 1e3 > self.stack_min_power)
-                    * np.ceil(P_avail / 1e3 / self.stack_rating)
+                    * np.ceil(P_avail / self.stack_rating)
                 ),
             ]
         )  # minimum possible number of electrolyzers that can use all of P_avail
@@ -796,9 +793,9 @@ class Supervisor(FromDictMixin):
 
             for i, a in enumerate(self.active):
                 if a:
-                    if P_avail >= (self.stack_rating - self.stack_min_power) * 1e3:
-                        P_i[i] += (self.stack_rating - self.stack_min_power) * 1e3
-                        P_avail -= (self.stack_rating - self.stack_min_power) * 1e3
+                    if P_avail >= (self.stack_rating - self.stack_min_power * 1e3):
+                        P_i[i] += self.stack_rating - self.stack_min_power * 1e3
+                        P_avail -= self.stack_rating - self.stack_min_power * 1e3
                     elif P_avail >= 0:
                         P_i[i] += P_avail
                         P_avail -= P_avail
