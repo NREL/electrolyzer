@@ -383,3 +383,71 @@ def test_calc_electrolysis_efficiency(stack: Stack):
         stack.stack_rating_kW, H2_mfr2 * 3600
     )
     assert eta_values2[0] < eta_values[0]
+
+
+def test_dt_behavior():
+    stack_dict = {
+        "n_cells": 100,
+        "cell_area": 1000,
+        "temperature": 60,
+        "max_current": 2000,
+        "dt": 1,
+    }
+
+    stack1 = Stack.from_dict(stack_dict)
+    stack1.cell_voltage = 1.5
+
+    stack_dict["dt"] = 60
+    stack60 = Stack.from_dict(stack_dict)
+    stack60.cell_voltage = 1.5
+
+    stack_dict["dt"] = 3600
+    stack3600 = Stack.from_dict(stack_dict)
+    stack3600.cell_voltage = 1.5
+
+    # Check that timescale specific attributes were initialized correctly
+    assert stack1.dt == 1
+    assert stack60.dt == 60
+    assert stack3600.dt == 3600
+
+    assert stack1.turn_on_delay == 600
+    assert stack60.turn_on_delay == 600
+    assert stack3600.turn_on_delay == 0
+
+    assert stack1.wait_time > 0
+    assert stack60.wait_time > 0
+    assert stack3600.wait_time == 0
+
+    # The steady degfradation calculation should change with the change in dt
+    stack1.calc_steady_degradation()
+    stack60.calc_steady_degradation()
+    stack3600.calc_steady_degradation()
+
+    assert stack1.d_s == 2.126068935e-10
+    assert stack60.d_s == 1.2756413610000001e-08
+    assert stack3600.d_s == 7.653848166e-07
+
+    # stack.update_dynamics() should only perform state space calculations if dt is
+    # small enough
+    assert not stack1.ignore_dynamics
+    assert stack60.ignore_dynamics
+    assert stack3600.ignore_dynamics
+
+    H2_mfr = 0.0015
+    stack_state = 0.001
+
+    stack1.stack_state = stack_state
+    stack60.stack_state = stack_state
+    stack3600.stack_state = stack_state
+
+    next_state1, H2_mfr1 = stack1.update_dynamics(H2_mfr, stack_state)
+    next_state60, H2_mfr60 = stack60.update_dynamics(H2_mfr, stack_state)
+    next_state3600, H2_mfr3600 = stack3600.update_dynamics(H2_mfr, stack_state)
+
+    assert H2_mfr1 != H2_mfr
+    assert H2_mfr60 == H2_mfr
+    assert H2_mfr3600 == H2_mfr
+
+    assert next_state1 != stack_state
+    assert next_state60 == stack_state
+    assert next_state3600 == stack_state
