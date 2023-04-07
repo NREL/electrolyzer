@@ -15,7 +15,6 @@ from electrolyzer import Supervisor, run_electrolyzer
 from electrolyzer.inputs.validation import load_modeling_yaml
 from electrolyzer.glue_code.optimization import calc_rated_system
 
-
 turbine_rating = 3.4  # MW
 
 # Create cosine test signal
@@ -54,6 +53,33 @@ def test_run_electrolyzer_dict():
 
     with pytest.raises(AssertionError):
         run_electrolyzer(bad_input, [])
+
+
+def test_degradation_dt():
+    """Larger time steps should undercalculate degradation"""
+
+    model_input = val.load_modeling_yaml(fname_input_modeling)
+
+    # initialize with dt = 1
+    model_input["electrolyzer"]["dt"] = 1
+    res1 = run_electrolyzer(model_input, power_test_signal)
+    _, df1 = res1
+    deg1 = df1[[col for col in df1 if "deg" in col]]
+
+    # initialize with dt = 60
+    model_input["electrolyzer"]["dt"] = 60
+    res60 = run_electrolyzer(model_input, power_test_signal)
+    _, df60 = res60
+    deg60 = df60[[col for col in df60 if "deg" in col]]
+
+    # initialize with dt = 3600
+    model_input["electrolyzer"]["dt"] = 3600
+    res3600 = run_electrolyzer(model_input, power_test_signal)
+    _, df3600 = res3600
+    deg3600 = df3600[[col for col in df3600 if "deg" in col]]
+
+    assert all(deg3600 < deg60)
+    assert all(deg60 < deg1)
 
 
 def test_result_df(result):
