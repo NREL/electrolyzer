@@ -36,7 +36,6 @@ plt.ylabel("Power (MW)")
 
 
 def plot_results(result_df):
-
     # Collect H2 production rate timeseries from results
     stack_rates = result_df[[col for col in result_df.columns if "_kg_rate" in col]]
 
