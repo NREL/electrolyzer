@@ -193,6 +193,10 @@ class Stack(FromDictMixin):
             self.uptime += self.dt
 
         else:
+            H2_mfr = 0
+            H2_mass_out = 0
+            self.stack_state, H2_mfr = self.update_dynamics(H2_mfr, self.stack_state)
+
             if self.stack_waiting:
                 self.uptime += self.dt
                 self.I = I
@@ -202,9 +206,6 @@ class Stack(FromDictMixin):
             else:
                 power_left = P_in
                 V = 0
-
-            H2_mfr = 0
-            H2_mass_out = 0
 
         self.cell_voltage = V
         self.voltage_history = np.append(self.voltage_history, [V])
@@ -385,6 +386,7 @@ class Stack(FromDictMixin):
             self.stack_on = False
             self.stack_waiting = False
             self.cycle_count += 1
+            # self.stack_state = 0
 
             # adjust waiting period
             self.wait_time = np.max(
@@ -395,8 +397,10 @@ class Stack(FromDictMixin):
         if self.stack_on:
             return
 
+        if not self.stack_waiting:
+            self.turn_on_time = self.time
+
         # record turn on time to adjust waiting period
-        self.turn_on_time = self.time
         self.stack_waiting = True
 
         # adjust waiting period

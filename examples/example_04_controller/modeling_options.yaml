@@ -12,7 +12,7 @@ electrolyzer:
     include_degradation_penalty: True
   control:
     n_stacks: 5
-    control_type: Decision_ctrl
+    control_type: DecisionControl
     policy:
       eager_on: False
       eager_off: False

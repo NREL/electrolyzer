@@ -83,7 +83,7 @@ class Supervisor(FromDictMixin):
             'BaselineDeg': sequentially turn on and off electrolyzers but only when you
                 have to
 
-        Decision_ctrl controller action schemes:
+        DecisionControl controller action schemes:
             'BBBB': baseline controller - one big stack
             'HHDV': hesitant on, hesitant off, degradation order, variable power dist
             'HHDE': hesitant on, hesitant off, degradation order, even power dist
@@ -223,14 +223,14 @@ class Supervisor(FromDictMixin):
         elif self.control_type == "BaselineDeg":
             stack_power = self.baseline_controller(power_in)
             curtailed_wind = 0
-        elif self.control_type == "Decision_ctrl":
+        elif self.control_type == "DecisionControl":
             stack_power = self.decision_ctrl(power_in)
             curtailed_wind = 0
 
         # Query stacks for their status and turn them on or off as needed
         on_or_waiting = np.zeros(self.n_stacks)
 
-        if ("deg" in self.control_type) or ("Decision" in self.control_type):
+        if ("Deg" in self.control_type) or ("Decision" in self.control_type):
             for i in range(self.n_stacks):
                 if self.stacks[i].stack_on or self.stacks[i].stack_waiting:
                     on_or_waiting[i] = 1
@@ -666,14 +666,14 @@ class Supervisor(FromDictMixin):
 
     def check_turn_on_off(self, P_avail):
         max_num_active = min(
-            [self.n_stacks, int(np.floor(P_avail / self.stack_min_power))]
+            [self.n_stacks, int(np.floor(P_avail / 1e3 / self.stack_min_power))]
         )  # maximum possible number of electrolzyers running
         min_num_active = min(
             [
                 self.n_stacks,
                 int(
-                    (P_avail > self.stack_min_power)
-                    * np.ceil(P_avail / self.stack_rating)
+                    (P_avail / 1e3 > self.stack_min_power)
+                    * np.ceil(P_avail / 1e3 / self.stack_rating)
                 ),
             ]
         )  # minimum possible number of electrolyzers that can use all of P_avail
@@ -714,10 +714,10 @@ class Supervisor(FromDictMixin):
             # Option 4: eager on, eager off has very frequent switching - not useful
 
         if self.baseline:
-            if P_avail > self.n_stacks * self.stack_min_power:
+            if P_avail / 1e3 > self.n_stacks * self.stack_min_power:
                 num_on = max([0, self.n_stacks - n_active])
                 num_off = 0
-            elif P_avail < self.n_stacks * self.stack_min_power:
+            elif P_avail / 1e3 < self.n_stacks * self.stack_min_power:
                 num_on = 0
                 num_off = min([self.n_stacks, n_active])
 
@@ -778,8 +778,8 @@ class Supervisor(FromDictMixin):
 
         for i, a in enumerate(self.active):
             if a:
-                P_i[i] += self.stack_min_power
-                P_avail -= self.stack_min_power
+                P_i[i] += self.stack_min_power * 1e3
+                P_avail -= self.stack_min_power * 1e3
 
         if (self.even_dist or self.baseline) & (sum(self.active) > 0):
             P_indv = P_avail / sum(self.active)  # check this if power gets too large
@@ -796,9 +796,9 @@ class Supervisor(FromDictMixin):
 
             for i, a in enumerate(self.active):
                 if a:
-                    if P_avail >= (self.stack_rating - self.stack_min_power):
-                        P_i[i] += self.stack_rating - self.stack_min_power
-                        P_avail -= self.stack_rating - self.stack_min_power
+                    if P_avail >= (self.stack_rating - self.stack_min_power) * 1e3:
+                        P_i[i] += (self.stack_rating - self.stack_min_power) * 1e3
+                        P_avail -= (self.stack_rating - self.stack_min_power) * 1e3
                     elif P_avail >= 0:
                         P_i[i] += P_avail
                         P_avail -= P_avail
@@ -825,27 +825,3 @@ class Supervisor(FromDictMixin):
         self.stacks[on_stack].turn_stack_on()
         self.waiting[on_stack] = 1
         # print(on_stack)
-
-    # def get_healthiest_inactive(self, active, deg_state, n_activate):
-    #     # TODO remove the arrays passed to this method since they are stored in
-    #     # self already
-    #     inact = np.nonzero(active - 1)[0]
-    #     ds = deg_state[inact]
-    #     deg_inds = np.argsort(ds)
-    #     temp = np.zeros_like(active)
-    #     temp[inact[deg_inds[0:n_activate]]] = 1
-    #     return temp  # active + temp will turn on the stacks at 1s
-
-    # def get_illest_active(self, active, deg_state, n_deactivate):
-    #     act = np.nonzero(active)[0]
-    #     ds = deg_state[act]
-    #     deg_inds = np.flip(np.argsort(ds))
-    #     temp = np.ones_like(active)
-    #     temp[act[deg_inds[0:n_deactivate]]] = 0
-
-    #     # active * temp will turn off the stacks at 0s
-    #     return temp
-
-    # want to be able to call this from time to time TODO
-    # def calculater_LCOH_from_current_state()
-    # roughly, find the slope of degradation over hydrogen then predict the lifetime

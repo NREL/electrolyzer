@@ -87,7 +87,7 @@ properties:
                         description: Number of electrolyzer Stacks to run in simulation
                     control_type:
                         type: string
-                        enum: [PowerSharingRotation, SequentialRotation, EvenSplitEagerDeg, EvenSplitHesitantDeg, SequentialEvenWearDeg, SequentialSingleWearDeg, BaselineDeg, Decision_ctrl]
+                        enum: [PowerSharingRotation, SequentialRotation, EvenSplitEagerDeg, EvenSplitHesitantDeg, SequentialEvenWearDeg, SequentialSingleWearDeg, BaselineDeg, DecisionControl]
                         default: BaselineDeg
                         description:
 
@@ -115,7 +115,7 @@ properties:
                         baseline:
                             type: boolean
                             default: True
-                            description: Baseline descision controller is to treat all stacks as a single large capacity electrolzyer
+                            description: Baseline decision controller is to treat all stacks as a single large capacity electrolzyer
 
             costs:
                 type: object

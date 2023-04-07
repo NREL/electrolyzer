@@ -96,7 +96,7 @@ def test_run(mocker):
     spy_update_deg.assert_not_called()
     spy_calc_p.assert_not_called()
     spy_calc_mfr.assert_not_called()
-    spy_update_dynamics.assert_not_called()
+    spy_update_dynamics.assert_called_once()
     spy_update_status.assert_called_once()
 
     assert stack.time == stack.dt
