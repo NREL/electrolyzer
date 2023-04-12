@@ -159,19 +159,6 @@ class Supervisor(FromDictMixin):
             # )
         return stacks
 
-    def update_stack_status(self):
-        # Update stack status
-        for i in range(self.n_stacks):
-            if self.stacks[i].stack_on:
-                self.stacks_on += 1
-                self.active[i] = 1
-            if self.stacks[i].stack_waiting:
-                self.waiting[i] = 1
-                self.stacks_waiting_vec[i] = 1
-            else:
-                self.waiting[i] = 0
-                self.stacks_waiting_vec[i] = 0
-
     def initialize_plant_stacks(self):
         # TODO: decide how many stacks should be turned on
         stack_number = round(self.initial_power_kW / self.stack_rating_kW) + 1
@@ -189,20 +176,22 @@ class Supervisor(FromDictMixin):
             self.stacks[i].stack_on = True
         self.update_stack_status()
 
-    def run_control(self, power_in):
-        """
-        Inputs:
-            power_in: power (W) to be consumed by the H2 farm every time step
-        Returns:
-            H2_mass_out: mass of h2 (kg) produced during each time step
-            H2_mass_flow_rate: mfr of h2 (kg/s) during that time step
-            power_left: power error (W) between what the stacks were
-                supposed to consume and what they actually consumed
-            curtailed_wind: power error (W) between available power_in and
-                what the stacks are commanded to consume
-        """
+    def update_stack_status(self):
+        # Update stack status
+        self.stacks_on = 0
+        for i in range(self.n_stacks):
+            if self.stacks[i].stack_on:  # or stack waiting
+                self.stacks_on += 1
+                self.active[i] = 1
+            if self.stacks[i].stack_waiting:
+                self.waiting[i] = 1
+                self.stacks_waiting_vec[i] = 1
+            else:
+                self.waiting[i] = 0
+                self.stacks_waiting_vec[i] = 0
 
-        # calculate stack power distribution
+    def get_power_distribution(self, power_in):
+        # Calculated stack scheduling and power distribution
         if self.control_type == "PowerSharingRotation":
             stack_power, curtailed_wind = self.power_sharing_rotation(power_in)
         elif self.control_type == "SequentialRotation":
@@ -226,80 +215,63 @@ class Supervisor(FromDictMixin):
             stack_power = self.decision_ctrl(power_in)
             curtailed_wind = 0
 
-        # Query stacks for their status and turn them on or off as needed
-        on_or_waiting = np.zeros(self.n_stacks)
+        return stack_power, curtailed_wind
 
-        if ("Deg" in self.control_type) or ("Decision" in self.control_type):
-            for i in range(self.n_stacks):
-                if self.stacks[i].stack_on or self.stacks[i].stack_waiting:
-                    on_or_waiting[i] = 1
-
-            # which stacks the controller thinks are on and which are actually on
-            mismatch = (self.active + self.waiting) - on_or_waiting
-
-            for i in range(len(mismatch)):
-                # this means the controller wants an electrolyzer on and that
-                # electrolyzer isnt on or waiting
-                if mismatch[i] == 1:
+    def implement_stack_status(self):
+        # Turn stacks on or off
+        for i in range(self.n_stacks):
+            if self.active[i]:
+                if not (self.stacks[i].stack_on or self.stacks[i].stack_waiting):
                     self.stacks[i].turn_stack_on()
-                elif mismatch[i] == 0:
-                    pass
-                # this means the controller wants an electrolyzer off and
-                # the electrolyzer is on
-                elif mismatch[i] == -1:
+            else:
+                if self.stacks[i].stack_on or self.stacks[i].stack_waiting:
                     self.stacks[i].turn_stack_off()
 
-            for i in range(self.n_stacks):
-                if self.stacks[i].stack_waiting:
-                    self.waiting[i] = 1
-                else:
-                    self.waiting[i] = 0
+    def run_control(self, power_in):
+        """
+        Inputs:
+            power_in: power (W) to be consumed by the H2 farm every time step
+        Returns:
+            H2_mass_out: mass of h2 (kg) produced during each time step
+            H2_mass_flow_rate: mfr of h2 (kg/s) during that time step
+            power_left: power error (W) between what the stacks were
+                supposed to consume and what they actually consumed
+            curtailed_wind: power error (W) between available power_in and
+                what the stacks are commanded to consume
+        """
 
-        active_actual = np.zeros(self.n_stacks)
-        for i in range(self.n_stacks):
-            if self.stacks[i].stack_on:
-                active_actual[i] = 1
+        self.update_stack_status()
+
+        stack_power, curtailed_wind = self.get_power_distribution(power_in)
+
+        self.implement_stack_status()
 
         power_left = 0
         H2_mass_out = 0
         self.stacks_on = 0
         H2_mass_flow_rate = np.zeros((self.n_stacks))
 
-        # simulate 1 time step for each stack
+        # simulate one time step for each stack
         for i in range(self.n_stacks):
             H2_mfr, H2_mass_i, power_left_i = self.stacks[i].run(stack_power[i])
 
             self.deg_state[i] = self.stacks[i].V_degradation
 
-            # Update stack status
-            if self.stacks[i].stack_on:
-                self.stacks_on += 1
-                self.active[i] = 1
-                on_or_waiting[i] = 1
-            if self.stacks[i].stack_waiting:
-                self.waiting[i] = 1
-                self.stacks_waiting_vec[i] = 1
-                on_or_waiting[i] = 1
-            else:
-                self.waiting[i] = 0
-                self.stacks_waiting_vec[i] = 0
-
             H2_mass_flow_rate[i] = H2_mfr
             H2_mass_out += H2_mass_i
             power_left += power_left_i
 
-        curtailed_wind = max(0, power_in - (np.dot(on_or_waiting, stack_power)))
+        curtailed_wind = max(0, power_in - (np.dot(self.active, stack_power)))
 
         return H2_mass_out, H2_mass_flow_rate, power_left, curtailed_wind
 
     def power_sharing_rotation(self, power_in):
         # Control strategy that shares power between all electrolyzers equally
         if sum(self.active) == 0:
-            P_indv = np.ones(1) * power_in / self.n_stacks
+            P_indv = power_in / self.n_stacks
         else:
-            P_indv = (
-                np.ones(1) * power_in / sum(self.active)
-            )  # divide the power evenely amongst electrolyzers
+            P_indv = power_in / sum(self.active)
+            # divide the power evenely amongst electrolyzers
         P_indv_kW = P_indv / 1000
 
         stacks_supported = min(power_in // (self.stack_rating / 2), self.n_stacks)
@@ -310,23 +282,23 @@ class Supervisor(FromDictMixin):
         if diff > 0:
             # elif P_indv_kW > (0.8 * self.stack_rating_kW):
             if diff > 1 or P_indv_kW > (0.8 * self.stack_rating_kW):
-                if sum(self.waiting) == 0 and sum(self.active) != self.n_stacks:
+                if sum(self.active) != self.n_stacks:
                     for i in range(0, diff):
                         ij = 0 + i
                         while self.active[self.stack_rotation[ij]] > 0:
                             ij += 1
-                        self.turn_on_stack(self.stack_rotation[ij])
+                        self.active[self.stack_rotation[ij]] = 1
 
         if diff < 0:
             if P_indv_kW < (0.2 * self.stack_rating_kW):
                 if sum(self.active) > 0:
-                    self.turn_off_stack(self.stack_rotation[0])
+                    self.active[self.stack_rotation[0]] = 0
                     self.stack_rotation = np.concatenate(
                         [self.stack_rotation[1:], [self.stack_rotation[0]]]
                     )
 
         if sum(self.active) > 0:
-            new_stack_power = np.ones((self.n_stacks)) * power_in / sum(self.active)
+            new_stack_power = np.ones(self.n_stacks) * power_in / sum(self.active)
         else:
             new_stack_power = np.zeros(self.n_stacks)
 
@@ -388,7 +360,8 @@ class Supervisor(FromDictMixin):
                     ij = 0 + i
                     while self.active[self.stack_rotation[ij]] > 0:
                         ij += 1
-                    self.turn_on_stack(self.stack_rotation[ij])
+                    # self.turn_on_stack(self.stack_rotation[ij])
+                    self.active[self.stack_rotation[ij]] = 1
         if stack_difference < 0:
             curtailed_wind = 0
             P_indv = P_indv * 0
@@ -401,7 +374,8 @@ class Supervisor(FromDictMixin):
                         ij += 1
                     off_stack = self.stack_rotation[ij]
                     # self.turn_on_stack(on_stack)
-                    self.turn_off_stack(off_stack)
+                    # self.turn_off_stack(off_stack)
+                    self.active[self.stack_rotation[ij]] = 0
                     # P_indv[on_stack] = self.stack_rating_kW * 1000
                     P_indv[off_stack] = 0
                     P_indv[elec_var] = self.stack_rating_kW * 1000
@@ -413,7 +387,8 @@ class Supervisor(FromDictMixin):
                 )
             ) or (stack_difference < -1 and sum(self.waiting) == 0):
                 if sum(self.active) > 0 and slope < 0:
-                    self.turn_off_stack(self.stack_rotation[0])
+                    # self.turn_off_stack(self.stack_rotation[0])
+                    self.active[self.stack_rotation[0]] = 0
                     self.stack_rotation = np.concatenate(
                         [self.stack_rotation[1:], [self.stack_rotation[0]]]
                     )
@@ -435,7 +410,8 @@ class Supervisor(FromDictMixin):
                     ij = 0
                     while self.active[self.stack_rotation[ij]] > 0:
                         ij += 1
-                    self.turn_on_stack(self.stack_rotation[ij])
+                    # self.turn_on_stack(self.stack_rotation[ij])
+                    self.active[self.stack_rotation[ij]] = 1
                     # self.turn_on_stack()
                 if sum(self.waiting) > 0:
                     P_indv[self.waiting > 0] = left_over_power * 1000 / 2
@@ -802,23 +778,3 @@ class Supervisor(FromDictMixin):
             # unpermute
 
         return P_i
-
-    def turn_off_stack(self, off_stack):
-        # print('turn off stack')
-
-        # off_stack = self.stack_rotation[0]
-        # self.stacks_on.remove(off_stack)
-        self.active[off_stack] = 0
-        self.waiting[off_stack] = 0
-        # self.stacks_off.append(off_stack)
-        self.stacks[off_stack].turn_stack_off()
-        # self.stacks_on = self.stacks_on - 1
-
-    def turn_on_stack(self, on_stack):
-        # print('turn on stack')
-
-        # on_stack = self.stacks_off[0]
-        # self.stacks_off.remove(on_stack)
-        self.stacks[on_stack].turn_stack_on()
-        self.waiting[on_stack] = 1
-        # print(on_stack)
