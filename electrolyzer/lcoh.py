@@ -3,17 +3,9 @@ This module defines the Hydrogen Electrolyzer control code.
 """
 import numpy as np
 import pandas as pd
-
-# import numpy.typing as npt
 from attrs import field, define
 
 from .type_dec import NDArrayFloat, FromDictMixin
-
-# from .stack import Stack
-from .supervisor import Supervisor
-
-
-# from electrolyzer.type_dec import NDArrayInt, NDArrayFloat, FromDictMixin
 
 
 @define
@@ -28,35 +20,33 @@ class LCOH(FromDictMixin):
     capex: dict
     finances: dict
 
-    supervisor: Supervisor = field(init=False)
+    # Simulation result details
+    dt: float
+    sim_length_hrs: float
+    plant_rating_kW: float
+    n_stacks: int
+    stack_rating_kW: float
+    deg_state: NDArrayFloat
+    electrical_feedstock_cost: float
+    power_kW_avail: NDArrayFloat
+    power_kW_curtailed: NDArrayFloat
+    kg_produced: NDArrayFloat
 
     plant_life: int = field(init=False, default=25)
     pem_location: str = field(init=False, default="onshore")
     water_feedstock_cost: float = field(init=False)
 
-    CapEx_summary: dict = field(init=False)
-    OpEx_summary: dict = field(init=False)
-    Feedstock_summary: dict = field(init=False)
-    StackReplacement_summary: dict = field(init=False)
-    StackReplacement_schedule: dict = field(init=False)
+    capex_summary: dict = field(init=False)
+    opex_summary: dict = field(init=False)
+    feedstock_summary: dict = field(init=False)
+    stack_replacement_summary: dict = field(init=False)
+    stack_replacement_schedule: dict = field(init=False)
     LCOH_summary: dict = field(init=False)
 
     os: int = field(init=False, default=0)
     IF: float = field(init=False, default=0.33)
     DR: float = field(init=False, default=0.04)
     plant_life_yrs: float = field(init=False, default=25)
-
-    sim_length_hrs: float = field(init=False)
-    plant_rating_kW: float = field(init=False)
-    n_stacks: int = field(init=False)
-    stack_rating_kW: float = field(init=False)
-    d_sim: NDArrayFloat = field(init=False)
-
-    power_kW_avail: NDArrayFloat = field(init=False)
-    power_kW_curtailed: NDArrayFloat = field(init=False)
-    kg_produced: NDArrayFloat = field(init=False)
-    electrical_feedstock_cost: float = field(init=False)
-    dt: float = field(init=False, default=1)
 
     def __attrs_post_init__(self) -> None:
         """
@@ -117,8 +107,8 @@ class LCOH(FromDictMixin):
                 -OUPUTS: stack replacement cost per year (array of length plant_life)
         CapEx Costs:
             functions used:
-                -pem_capex_calc
-                -bop_capex_calc
+                -calc_pem_capex
+                -calc_bop_capex
             -split into BOP and PEM
                 -user_inputs:
                     capex_learning_rate
@@ -131,16 +121,12 @@ class LCOH(FromDictMixin):
         H2 Production:
             -done in LCOH calculation
             -simulation data scaled to represent a year
-
-
-
-
         """
-        self.CapEx_summary = {}
-        self.StackReplacement_summary = {}
-        self.StackReplacement_schedule = {}
-        self.Feedstock_summary = {}
-        self.OpEx_summary = {}
+        self.capex_summary = {}
+        self.stack_replacement_summary = {}
+        self.stack_replacement_schedule = {}
+        self.feedstock_summary = {}
+        self.opex_summary = {}
         self.LCOH_summary = {}
         self.plant_life_yrs = self.plant_params["plant_life"]
         if self.plant_params["pem_location"] == "onshore":
@@ -150,50 +136,21 @@ class LCOH(FromDictMixin):
 
         self.IF = self.finances["install_factor"]
         self.DR = self.finances["discount_rate"]
-        self.sim_length_hrs = 0
-        self.plant_rating_kW = 0
-        self.n_stacks = 0
-        self.stack_rating_kW = 0
 
-        self.d_sim = np.zeros(7)
-        self.power_kW_avail = np.zeros(7)
-        self.power_kW_curtailed = np.zeros(7)
-        self.kg_produced = np.zeros(7)
-
-        self.electrical_feedstock_cost = 0.0
-        self.dt = 0
-
-    def get_simulation_info(self, elec_sys, elec_df, lcoe):
-        # used because I'm kind of bad at coding
-        # and I needed these inputs for the analysis
-        # basically the same as an __init__ thing without
-        # the weird dictionary situation :)
-        []
-        self.dt = elec_sys.dt
-        self.sim_length_hrs = len(elec_df["power_signal"]) * elec_sys.dt / 3600
-        self.plant_rating_kW = elec_sys.n_stacks * elec_sys.stack_rating_kW
-        self.n_stacks = elec_sys.n_stacks
-        self.stack_rating_kW = elec_sys.stack_rating_kW
-        self.d_sim = elec_sys.deg_state
-        self.power_kW_avail = elec_df["power_signal"].values / 1000  # [W]
-        self.power_kW_curtailed = elec_df["curtailment"].values / 1000
-        self.kg_produced = elec_df["kg_rate"].values  # kg
-        self.electrical_feedstock_cost = lcoe  # [$/kWh]
-
-    def pem_capex_calc(self, sys_rating_oi_kW):
+    def calc_pem_capex(self):
         # PEM capex using cost scaling
         lr = self.capex["capex_learning_rate"]
         b_capex = np.log2(1 - lr)
         Sr0 = self.capex["ref_size_pem"]  # ref size [kW]
         Cr0 = self.capex["ref_cost_pem"]  # ref cost [$/kW]
         # self.plant_rating_kW
-        Sr = (sys_rating_oi_kW / Sr0) ** b_capex  # scale sized
+        Sr = (self.stack_rating_kW / Sr0) ** b_capex  # scale sized
         adj_IF = 1 + self.IF * self.os
         Cr_uninstalled = Cr0 * Sr  # [$/kW]
         Cr_installed = adj_IF * Cr0 * Sr  # [$/kW]
-        capex_pem_dollars_installed = Cr_installed * sys_rating_oi_kW
-        capex_pem_dollars_uninstalled = Cr_uninstalled * sys_rating_oi_kW
-        self.CapEx_summary["PEM"] = {
+        capex_pem_dollars_installed = Cr_installed * self.stack_rating_kW
+        capex_pem_dollars_uninstalled = Cr_uninstalled * self.stack_rating_kW
+        self.capex_summary["PEM"] = {
             "Uninstalled [$/kW]": Cr_uninstalled,
             "Installed [$/kW]": Cr_installed,
             "Uninstalled [$]": capex_pem_dollars_uninstalled,
@@ -201,19 +158,19 @@ class LCOH(FromDictMixin):
         }
         return capex_pem_dollars_installed
 
-    def bop_capex_calc(self, sys_rating_oi_kW):
+    def calc_bop_capex(self):
         # BOP capex using cost scaling
         lr = self.capex["capex_learning_rate"]
         b_capex = np.log2(1 - lr)
         Sr0 = self.capex["ref_size_bop"]
         Cr0 = self.capex["ref_cost_bop"]
-        Sr = (sys_rating_oi_kW / Sr0) ** b_capex  # scale sized
+        Sr = (self.stack_rating_kW / Sr0) ** b_capex  # scale sized
         adj_IF = 1 + self.IF * self.os
         Cr_uninstalled = Cr0 * Sr  # [$/kW]
         Cr_installed = adj_IF * Cr0 * Sr  # [$/kW]
-        capex_bop_dollars_installed = Cr_installed * sys_rating_oi_kW
-        capex_bop_dollars_uninstalled = Cr_uninstalled * sys_rating_oi_kW
-        self.CapEx_summary["BOP"] = {
+        capex_bop_dollars_installed = Cr_installed * self.stack_rating_kW
+        capex_bop_dollars_uninstalled = Cr_uninstalled * self.stack_rating_kW
+        self.capex_summary["BOP"] = {
             "Uninstalled [$/kW]": Cr_uninstalled,
             "Installed [$/kW]": Cr_installed,
             "Uninstalled [$]": capex_bop_dollars_uninstalled,
@@ -228,11 +185,11 @@ class LCOH(FromDictMixin):
         # Alternative approach would be to use the plant_rating
         # instead and remove the scale factor
 
-        # pem_capex = self.pem_capex_calc(self.plant_rating_kW)
-        # bop_capex = self.bop_capex_calc(self.plant_rating_kW)
+        # pem_capex = self.calc_pem_capex(self.plant_rating_kW)
+        # bop_capex = self.calc_bop_capex(self.plant_rating_kW)
         sizeup_factor = self.plant_rating_kW / self.stack_rating_kW
-        pem_capex = sizeup_factor * self.pem_capex_calc(self.stack_rating_kW)
-        bop_capex = sizeup_factor * self.bop_capex_calc(self.stack_rating_kW)
+        pem_capex = sizeup_factor * self.calc_pem_capex()
+        bop_capex = sizeup_factor * self.calc_bop_capex()
         total_capex = pem_capex + bop_capex
         return total_capex
 
@@ -253,8 +210,8 @@ class LCOH(FromDictMixin):
         # this must be called after capex has been calculated
         # not using any fancy cost scaling for stack replacement base cost
         single_stack_cost_perkW = (
-            self.CapEx_summary["PEM"]["Uninstalled [$/kW]"]
-            + self.CapEx_summary["BOP"]["Uninstalled [$/kW]"]
+            self.capex_summary["PEM"]["Uninstalled [$/kW]"]
+            + self.capex_summary["BOP"]["Uninstalled [$/kW]"]
         )
         stack_rep_cost = (
             self.stack_rating_kW
@@ -264,7 +221,7 @@ class LCOH(FromDictMixin):
 
         n_stacks_replace_per_yr = self.calc_stack_replacement_schedule()
         annual_stack_rep_cost = n_stacks_replace_per_yr * stack_rep_cost
-        self.StackReplacement_summary = {
+        self.stack_replacement_summary = {
             "Stack Replacement Cost [$/kW]": single_stack_cost_perkW,
             "Stack Replacement Cost [$/stack]": stack_rep_cost,
             "Annual Stack Replacement Cost [$]": annual_stack_rep_cost,
@@ -275,7 +232,7 @@ class LCOH(FromDictMixin):
         # end of life voltage value
         d_eol = self.stack_replacement["d_eol"]
         # time until death (below) [hrs]
-        t_eod = (d_eol / self.d_sim) * self.sim_length_hrs
+        t_eod = (d_eol / self.deg_state) * self.sim_length_hrs
         return t_eod
 
     def calc_stack_replacement_schedule(self):
@@ -294,7 +251,7 @@ class LCOH(FromDictMixin):
             n_stacks_replaced[y] = np.where(hrs_left < 0, 1, 0)
 
         annual_stack_rep = np.sum(n_stacks_replaced, axis=1)
-        self.StackReplacement_schedule = {
+        self.stack_replacement_schedule = {
             "Hrs until Replacement": pd.DataFrame(time_until_replaced),
             "Stacks Replaced": pd.DataFrame(n_stacks_replaced),
             "Annual Number of Stacks to Replace": annual_stack_rep,
@@ -309,7 +266,7 @@ class LCOH(FromDictMixin):
         annual_h20_consumed = (8760 / self.sim_length_hrs) * kg_h20_sim
         water_feedstock = annual_h20_consumed * self.feedstock["water_feedstock_cost"]
 
-        self.Feedstock_summary.update(
+        self.feedstock_summary.update(
             {
                 "Annual H20 Cost [$]": water_feedstock,
                 "Sim H20 Cost [$]": kg_h20_sim * self.feedstock["water_feedstock_cost"],
@@ -331,7 +288,7 @@ class LCOH(FromDictMixin):
         annual_power_consumed = (8760 / self.sim_length_hrs) * power_consumed_kWh_sim
         elec_feedstock = self.electrical_feedstock_cost * annual_power_consumed
 
-        self.Feedstock_summary.update(
+        self.feedstock_summary.update(
             {
                 "Annual Electricity Cost [$]": elec_feedstock,
                 "Sim Electricity Cost [$]": power_consumed_kWh_sim
@@ -347,7 +304,7 @@ class LCOH(FromDictMixin):
         h20_feedstock = self.calc_water_feedstock_costs()
         elec_feedstock = self.calc_elec_feedstock_costs()
         total_annual_feedstock_cost = h20_feedstock + elec_feedstock
-        self.Feedstock_summary.update(
+        self.feedstock_summary.update(
             {"Total Feedstock Cost [$]": total_annual_feedstock_cost}
         )
 
@@ -361,7 +318,7 @@ class LCOH(FromDictMixin):
         VOM = CF * self.opex["var_OM"] * 8760  # $/kW-year
         FOM = self.opex["fixed_OM"]  # $/kW-year
         OM_per_year = self.plant_rating_kW * (VOM + FOM)
-        self.OpEx_summary = {
+        self.opex_summary = {
             "CF [-]": CF,
             "Variable O&M [$/kW-year]": VOM,
             "Fixed O&M [$/kW-year]:FOM": FOM,
@@ -378,7 +335,6 @@ class LCOH(FromDictMixin):
         # RUNNER FUNCTION
         # H2 production scaled to annual amount
         # discount rate applied for each year
-        # woohooo!
 
         annual_h2_produced = self.calc_yearly_h2_production()
 
@@ -404,17 +360,15 @@ class LCOH(FromDictMixin):
         total_annual_costs = annual_OM + annual_feedstock + annual_stackrep
         lcoh = (tot_capex + np.sum(total_annual_costs)) / np.sum(annual_h2)
 
-        df_data = pd.concat(
-            [
-                pd.Series(annual_reduction, name="Annual Discount"),
-                pd.Series(annual_h2, name="H2 [kg]"),
-                pd.Series(annual_OM, name="OM [$]"),
-                pd.Series(annual_feedstock, name="feedstock [$]"),
-                pd.Series(annual_stackrep, name="Stack Replacement [$]"),
-                pd.Series(total_annual_costs, name="total annual cost [$]"),
-            ],
-            axis=1,
-        )
+        data = {
+            "Annual Discount": annual_reduction,
+            "H2 [kg]": annual_h2,
+            "OM [$]": annual_OM,
+            "feedstock [$]": annual_feedstock,
+            "Stack Replacement [$]": annual_stackrep,
+            "total annual cost [$]": total_annual_costs,
+        }
+        df_data = pd.DataFrame(data)
 
         tot_Data = [
             tot_capex,
@@ -428,4 +382,5 @@ class LCOH(FromDictMixin):
         self.LCOH_summary["Totals [$]"] = dict(zip(tot_keys, tot_Data))
         self.LCOH_summary["Totals [$/kg-H2]"] = dict(zip(tot_keys, tot_data_per_kg))
         self.LCOH_summary["LCOH [$/kg-H2]"] = lcoh
+
         return lcoh
