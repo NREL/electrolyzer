@@ -95,3 +95,94 @@ properties:
                 type: object
                 default: {}
                 description: Set cost modeling properties for electrolyzers
+                properties:
+                    plant_params:
+                        type: object
+                        description: Parameters related to the plant.
+                        properties:
+                            plant_life:
+                                type: integer
+                                description: Plant life in years.
+                                minimum: 1
+                            pem_location:
+                                type: string
+                                description: Location of the PEM electrolyzer (onshore, offshore, or in-turbine).
+                                enum: [onshore, offshore, in-turbine]
+                                default: onshore
+                            grid_connected:
+                                type: boolean
+                                description: Whether the plant is connected to the grid or not.
+                    feedstock:
+                        type: object
+                        description: Parameters related to the feedstock.
+                        properties:
+                            water_feedstock_cost:
+                                type: number
+                                description: Cost of water feedstock per kg of water.
+                                minimum: 0
+                            water_per_kgH2:
+                                type: number
+                                description: Amount of water required per kg of hydrogen produced (placeholder).
+                                minimum: 0
+                    opex:
+                        type: object
+                        description: Operational expenditure parameters.
+                        properties:
+                            var_OM:
+                                type: number
+                                description: Variable operation and maintenance cost per kW.
+                                minimum: 0
+                            fixed_OM:
+                                type: number
+                                description: Fixed operation and maintenance cost per kW-year.
+                                minimum: 0
+                    stack_replacement:
+                        type: object
+                        description: Parameters related to stack replacement.
+                        properties:
+                            d_eol:
+                                type: number
+                                description: End of life cell voltage value.
+                                minimum: 0
+                            stack_replacement_percent:
+                                type: number
+                                description: Stack replacement cost as a percentage of CapEx.
+                                minimum: 0
+                                maximum: 1
+                    capex:
+                        type: object
+                        description: Capital expenditure parameters.
+                        properties:
+                            capex_learning_rate:
+                                type: number
+                                description: Capital expenditure learning rate.
+                                minimum: 0
+                            ref_cost_bop:
+                                type: number
+                                description: Reference cost for balance of plant per kW.
+                                minimum: 0
+                            ref_size_bop:
+                                type: number
+                                description: Reference size for balance of plant in kW.
+                                minimum: 0
+                            ref_cost_pem:
+                                type: number
+                                description: Reference cost for PEM per kW.
+                                minimum: 0
+                            ref_size_pem:
+                                type: number
+                                description: Reference size for PEM in kW.
+                                minimum: 0
+                    finances:
+                        type: object
+                        description: Financial parameters.
+                        properties:
+                            discount_rate:
+                                type: number
+                                description: Discount rate for financial calculations.
+                                minimum: 0
+                            install_factor:
+                                type: number
+                                description: Installation factor as a percentage.
+                                minimum: 0
+                                maximum: 1
