@@ -193,6 +193,10 @@ class Stack(FromDictMixin):
             self.uptime += self.dt
 
         else:
+            H2_mfr = 0
+            H2_mass_out = 0
+            self.stack_state, H2_mfr = self.update_dynamics(H2_mfr, self.stack_state)
+
             if self.stack_waiting:
                 self.uptime += self.dt
                 self.I = I
@@ -202,9 +206,6 @@ class Stack(FromDictMixin):
             else:
                 power_left = P_in
                 V = 0
-
-            H2_mfr = 0
-            H2_mass_out = 0
 
         self.cell_voltage = V
         self.voltage_history = np.append(self.voltage_history, [V])
@@ -305,14 +306,22 @@ class Stack(FromDictMixin):
 
     def update_degradation(self):
         if self.hour_change:  # only calculate fatigue degradation every hour
-            voltage_perc = (max(self.voltage_signal) - min(self.voltage_signal)) / max(
-                self.voltage_signal
-            )
-            # Only penalize if more than 5% difference in voltage
-            if voltage_perc > 0.05:
-                self.fatigue_history = self.calc_fatigue_degradation(
-                    self.voltage_signal
+            # fatigue only counts the nonzero voltage fluctuations since transition to
+            # and from V = 0 are captured with on/off cycles.
+            voltage_signal_nz = self.voltage_signal[np.nonzero(self.voltage_signal)]
+
+            # to avoid a divide by zero, only proceed if there are nonzero values in the
+            # voltage signal.
+            if len(voltage_signal_nz) > 0:
+                voltage_perc = (max(voltage_signal_nz) - min(voltage_signal_nz)) / max(
+                    voltage_signal_nz
                 )
+
+                # Only penalize if more than 5% difference in voltage
+                if voltage_perc > 0.05:
+                    self.fatigue_history = self.calc_fatigue_degradation(
+                        self.voltage_signal
+                    )
 
         self.d_f = self.fatigue_history
 
@@ -377,6 +386,7 @@ class Stack(FromDictMixin):
             self.stack_on = False
             self.stack_waiting = False
             self.cycle_count += 1
+            # self.stack_state = 0
 
             # adjust waiting period
             self.wait_time = np.max(
@@ -387,8 +397,10 @@ class Stack(FromDictMixin):
         if self.stack_on:
             return
 
+        if not self.stack_waiting:
+            self.turn_on_time = self.time
+
         # record turn on time to adjust waiting period
-        self.turn_on_time = self.time
         self.stack_waiting = True
 
         # adjust waiting period
@@ -406,8 +418,8 @@ class Stack(FromDictMixin):
             V (optional): stack voltage
             return :: Pdc [kW]: stack power
         """
-        V = V or (self.cell.calc_cell_voltage(Idc, self.temperature) * self.n_cells)
-        Pdc = Idc * V
+        V = V or (self.cell.calc_cell_voltage(Idc, self.temperature))
+        Pdc = Idc * V * self.n_cells
         Pdc = Pdc / 1000.0  # [kW]
 
         return Pdc
