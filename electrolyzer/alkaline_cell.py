@@ -165,34 +165,39 @@ class AlkalineCell(FromDictMixin):
         I [A]: current
         T_C [C]: temperature
         returns:
-            -theta:
-            -epsilon:
+            -theta: bubble rate coverage
+            -epsilon: bulk bubble rate?
         Reference:
+        [Hammoudi,Henao, 2012] Eqn 44
+        [Vogt,Balzer 2005]: value for J_lim
+        [Niroula, Chaudhary, Subedi, Thapa 2003]: Eqn 17
+        [Gambou, Guilbert,et al 2022] Eqn 19 for Pv_H2O
         """
-        # [Hammoudi,Henao, 2012] Eqn 44
-        # References [Vogt,Balzer 2005]
-        # "The bubble coverage of gas-evolving electrodes in stagnant electrolytes" by
-        # H.Vogt and R.J. Balzer 2005
+
         # VERIFIED for j=0.01 A/cm^2 and T_C=50 degC (Figure 4 from H. Vogt)
         # NOTE: H. Vogt paper uses 3M KOH solution, but we're using closer to 6
 
         T_k = convert_temperature([T_C], "C", "K")[0]
-        J_lim = 30  # [A/cm^2] from ref of 300 [kA/m^2]
-        T_amb = 25 + 273.15  # [K]
+        J_lim = 30  # [A/cm^2] [Vogt,Balzer 2005]
+        T_amb = T_k = convert_temperature([25], "C", "K")[0]
         j = I / self.A_electrode  # [A/cm^2] "nominal current density"
-        # theta is bubble rate coverage
+
+        # Eqn 19 of [Gambou, Guilbert,et al 2022]
         Pv_H20 = np.exp(
             81.6179 - (7699.68 / T_k) - (10.9 * np.log(T_k)) + (T_k * (9.5891 * 1e-3))
-        )  # Eqn 19
-        # Eqn 17 of new source for v_act
+        )
+
+        # theta is bubble rate coverage
+        # Eqn 17 of [Niroula, Chaudhary, Subedi, Thapa 2003]
         theta = (
             (self.pressure_operating / (self.pressure_operating - Pv_H20))
             * (-97.25 + 182 * (T_k / T_amb) - 84 * ((T_k / T_amb) ** 2))
             * (j / J_lim) ** (0.3)
         )
         # theta = (-97.25 + 182*(T_k/T_amb)-84*((T_k/T_amb)**2))*(j/J_lim)**(0.3)
-        # #^^Eqn 44 of [Hammoudi,Henao, 2012]
+        # ^^Eqn 44 of [Hammoudi,Henao, 2012]
         # epsilon is the covering rate bubbling?
+        # (below) [Hammoudi,Henao, 2012] page 13906 in text at end of section 3.1
         epsilon = (2 / 3) * theta  # bulk bubbling
         return [theta, epsilon]
 
@@ -276,10 +281,8 @@ class AlkalineCell(FromDictMixin):
         T_C [C]: temperature
         return :: V_cell [V/cell]: total cell voltage
 
-        Reference: [Gambou, Guilbert,et al 2022]
+        Reference: [Gambou, Guilbert,et al 2022]: Eqn 4
         """
-        # cell
-        # [Gambou, Guilbert,et al 2022]
         V_rev = self.calc_Urev(T_C, self.pressure_operating)
         V_act_a, V_act_c = self.calc_activation_overpotential(T_C, I)
         V_ohm = self.calc_ohmic_overpotential(T_C, I)
@@ -296,7 +299,6 @@ class AlkalineCell(FromDictMixin):
         [Gambou, Guilbert,et al 2022]: Eqn 14,17-20
         """
 
-        # [Gambou, Guilbert,et al 2022]
         # P = 1 #gas pressure [bar], TODO: double check!
         T_K = convert_temperature([T_C], "C", "K")[0]
 
@@ -349,7 +351,7 @@ class AlkalineCell(FromDictMixin):
         returns::
             V_act_a [V/cell]: resistance of nickle anode
             V_act_a [V/cell]: resistance of nickle cathode
-        Reference: [Niroula, Chaudhary, Subedi, Thapa 2003]
+        Reference: [Niroula, Chaudhary, Subedi, Thapa 2003] Eqn 11-16
         """
 
         # validated against Figure 5 of Reference
@@ -401,20 +403,25 @@ class AlkalineCell(FromDictMixin):
         returns::
             Ra [Ohms]: resistance of nickle anode
             Rc [Ohms]: resistance of nickle cathode
-        Reference: [Niroula, Chaudhary, Subedi, Thapa 2003]
+        Reference: [Niroula, Chaudhary, Subedi, Thapa 2003]: Eqn 20-21, Table 1
         """
         # nickle anode and cathode
+        # Table 1
         tref = 25
-        temp_coeff = 0.00586
-        rho_nickle_0 = 6.4 * 10 ** (-6)
+        temp_coeff = 0.00586  # 1/degC
+        # resistivity of 100% dense electrode at tref
+        rho_nickle_0 = 6.4 * 10 ** (-6)  # [Ohm*cm]
+        # porosity of electrode
         epsilon_Ni = 0.3
+        # Eqn 21 - effective resistance of electrode
         rho_nickle_eff = rho_nickle_0 / ((1 - epsilon_Ni) ** 1.5)
-
+        # Eqn 20 - resistivity of anode
         Ra = (
             rho_nickle_eff
             * (self.e_a / self.A_electrode)
             * (1 + (temp_coeff * (T_C - tref)))
         )
+        # Eqn 20 - resistivity of cathode
         Rc = (
             rho_nickle_eff
             * (self.e_c / self.A_electrode)
@@ -427,7 +434,7 @@ class AlkalineCell(FromDictMixin):
         # but those were described as the "height" of the electrode ...
         # ^ these gave a negative value for the conductivity of nickle...
 
-        return Ra, Rc
+        return Ra, Rc  # Ohms
 
     def calc_electrolyte_resistance(self, T_C, I):
         """
@@ -471,7 +478,6 @@ class AlkalineCell(FromDictMixin):
         # where A_el is the metal area, not the entire area (which has holes)
         # Eqn 34 of [Gambou, Guilbert,et al 2022] and Eqn 20 of [Henou, Agbossou, 2014]
         # Resistance due to bubbles
-
         theta_epsilon = self.calculate_bubble_rate_coverage(T_C, I)
         epsilon = theta_epsilon[1]
         # R_ele_b=R_ele_bf*((1/(1-epsilon)**(3/2))-1)
@@ -528,9 +534,9 @@ class AlkalineCell(FromDictMixin):
         T_C [C]: temperature
         returns :: R_tot [Ohms]:
 
-        Reference:
+        Reference: [Gambou, Guilbert,et al 2022]: Eqn 27
         """
-        # cell
+
         R_a, R_c = self.calc_electrode_resistance(T_C)
         R_electrode = R_a + R_c
         R_ele_bf, R_ele_b = self.calc_electrolyte_resistance(T_C, I)  # [Ohms]
@@ -546,10 +552,11 @@ class AlkalineCell(FromDictMixin):
         T_C [C]: temperature
         return :: V_ohm [V/cell]: overpotential due to resistive losses
 
-        Reference:
+        Reference: [Gambou, Guilbert,et al 2022] Eqn 10
+            -> uses current instead of current density
         """
-        # cell
-        R_tot = self.calc_total_resistance(T_C, I)  # Ohm*cm^2?
+
+        R_tot = self.calc_total_resistance(T_C, I)  # Ohms
         # NOTE: I'm really not sure what units to use anymore...
         V_ohm = I * R_tot  # [V/cell]
         return V_ohm

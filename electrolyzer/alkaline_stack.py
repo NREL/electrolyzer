@@ -17,13 +17,14 @@ from .alkaline_cell import (
 class AlkalineStack(FromDictMixin):
     # Stack parameters #
     ####################
-    cell_area: float
-    max_current: float
-    temperature: float
-    n_cells: int
     dt: float
+    max_current_dens: float
+    temperature: float
+    pressure_operating: float
+    n_cells: int
+    min_power_percent: float
+    A_electrode: float
 
-    min_power: float = None
     stack_rating_kW: float = None
 
     # initialized in __attrs_post_init
@@ -38,6 +39,10 @@ class AlkalineStack(FromDictMixin):
     uptime: float = field(init=False, default=0)
 
     cell_voltage: float = field(init=False, default=0)
+
+    # conversion factor from steady to degradation V
+    # based on 10% eff loss after 60k hours of operation
+    rate_steady: float = field(init=False, default=5.092592592592592e-09)
 
     # [V] degradation penalty from steady operation only
     d_s: float = field(init=False, default=0)
@@ -59,8 +64,8 @@ class AlkalineStack(FromDictMixin):
     )
 
     # conversion factor from rf_track to degradation V
-    # ALK
-    rate_fatigue: float = field(init=False, default=3.33330244e-07)
+    # less conservative number: 6.410256410256412e-06
+    rate_fatigue: float = field(init=False, default=1.2820512820512823e-05)
 
     # [V] degradation from fluctuating power only
     d_f: float = field(init=False, default=0)
@@ -69,8 +74,11 @@ class AlkalineStack(FromDictMixin):
     cycle_count: int = field(init=False, default=0)
 
     # conversion from cycle_count to degradation V
-    # ALK
-    rate_onoff: float = field(init=False, default=1.47821515e-04)
+    # should not be more than 5k/year or else...
+    # based on costs...
+    # cold_start deg rate = 3.0726072607260716e-04
+    # hot_start deg rate = 3.1353135313531345e-05
+    rate_onoff: float = field(init=False, default=3.0726072607260716e-04)
 
     # [V] degradation from on/off cycling only
     d_o: float = field(init=False, default=0)
@@ -110,7 +118,7 @@ class AlkalineStack(FromDictMixin):
     time: float = field(init=False, default=0)
 
     # [s] time constant https://www.sciencedirect.com/science/article/pii/S0360319911021380 section 3.4 # noqa
-    tau: float = 5  # ALK
+    tau: float = 5  # same for alkaline
 
     stack_state: float = field(init=False, default=0)
 
@@ -123,14 +131,14 @@ class AlkalineStack(FromDictMixin):
     def __attrs_post_init__(self) -> None:
         # Stack parameters #
         ####################
-
+        self.max_current = self.max_current_dens * self.A_electrode
         # TODO: let's make this more seamless
-        self.cell = Cell.from_dict({"cell_area": self.cell_area})
+        self.cell = Cell.from_dict({"alkaline": []})  # needs updating for alkaline
         # TODO: ALK add in calc for max current based on max current density
 
         self.fit_params = self.create_polarization()
         # conversion factor from steady to degradation V
-        self.rate_steady = self.create_steady_deg_rate(0.1, 60000)  # [V/s]
+        # self.rate_steady = self.create_steady_deg_rate(0.1, 60000)  # [V/s]
 
         # Stack dynamics #
         ##################
@@ -162,9 +170,9 @@ class AlkalineStack(FromDictMixin):
 
         self.stack_rating = self.stack_rating_kW * 1e3  # [W] nameplate rating
 
-        # [W] cannot operate at less than 10% of rated power
+        # [W] cannot operate at less than 20-40% of rated power
         # ALK
-        self.min_power = self.min_power or (0.1 * self.stack_rating)
+        self.min_power = self.min_power_percent * self.stack_rating
         # self.h2_pres_out = 31  # H2 outlet pressure (bar)
 
         self.DTSS = self.calc_state_space()
@@ -237,7 +245,7 @@ class AlkalineStack(FromDictMixin):
         currents = np.arange(0, self.max_current + interval, interval)
         pieces = []
         prev_temp = self.temperature
-        for temp in np.arange(40, 60 + 5, 5):
+        for temp in np.arange(self.temperature - 5, self.temperature + 10, 5):
             self.temperature = temp
             powers = self.calc_stack_power(currents)
             tmp = pd.DataFrame({"current_A": currents, "power_kW": powers})
@@ -442,9 +450,9 @@ class AlkalineStack(FromDictMixin):
 
         return (eta_kWh_per_kg, eta_hhv_percent, eta_lhv_percent)
 
-    def create_steady_deg_rate(self, ref_eol_eff_loss, ref_op_hrs):
-        V_bol = self.cell.calc_cell_voltage(self.max_current, self.temperature)
-        d_eol = V_bol * (1 + ref_eol_eff_loss)
-        # sec2hr=3600
-        steady_deg_rate = d_eol / (V_bol * ref_op_hrs * 3600)
-        return steady_deg_rate  # [V/s]
+    # def create_steady_deg_rate(self, ref_eol_eff_loss, ref_op_hrs):
+    #     V_bol = self.cell.calc_cell_voltage(self.max_current, self.temperature)
+    #     d_eol = V_bol * (1 + ref_eol_eff_loss)
+    #     # sec2hr=3600
+    #     steady_deg_rate = d_eol / (V_bol * ref_op_hrs * 3600)
+    #     return steady_deg_rate  # [V/s]
