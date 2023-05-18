@@ -275,7 +275,7 @@ class Stack(FromDictMixin):
         return:: voltage_penalty: the degradation penalty
         """
         # based off degradation due to square waves of different frequencies
-        # from results in https://iopscience.iop.org/article/10.1149/2.0231915je
+        # from results in https://iopscience.iop.org/article/10.1149/2.0231915jes
 
         # nonzero voltage signal so that it does not double count power cycling
         voltage_signal = voltage_signal[np.nonzero(voltage_signal)]
@@ -289,7 +289,7 @@ class Stack(FromDictMixin):
 
     def calc_steady_degradation(self):
         # based off degradation due to steady operation
-        # from results in https://iopscience.iop.org/article/10.1149/2.0231915je
+        # from results in https://iopscience.iop.org/article/10.1149/2.0231915jes
 
         d_s = self.d_s + self.rate_steady * self.cell_voltage * self.dt
 
