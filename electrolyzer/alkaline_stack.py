@@ -8,7 +8,7 @@ from scipy.signal import tf2ss, cont2discrete
 
 from .type_dec import NDArrayFloat, FromDictMixin, array_converter
 from .alkaline_cell import (
-    AlkalineCell as Cell,
+    Alkaline_Cell as Cell,
     ael_electrolyzer_model as electrolyzer_model,
 )
 

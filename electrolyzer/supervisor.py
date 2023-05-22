@@ -15,14 +15,17 @@ class Supervisor(FromDictMixin):
     ####################
 
     dt: float
+    supervisor: dict
+    controller: dict
     stack: dict
+    degradation: dict
+    cell_params: dict
     costs: dict  # TODO: should this be connected here?
-    control: dict
     initialize: bool = False
     initial_power_kW: float = 0.0
 
     name: str = field(default="electrolyzer_001")
-    description: str = field(default="A PEM electrolyzer model")
+    description: str = field(default="An electrolyzer model")
 
     control_type: str = field(init=False, default="BaselineDeg")
     n_stacks: int = field(init=False, default=1)
@@ -98,8 +101,8 @@ class Supervisor(FromDictMixin):
             'EHOV': eager on, hesitant off, rotation order, variable power dist
             'EHOE': eager on, hesitant off, rotation order, even power dist
         """
-        self.control_type = self.control["control_type"]
-        self.n_stacks = self.control["n_stacks"]
+        self.control_type = self.controller["control_type"]
+        self.n_stacks = self.supervisor["n_stacks"]
 
         if "sequential" in self.control_type.lower():
             # TODO: current filter width hardcoded at 5 min, make an input
@@ -109,11 +112,11 @@ class Supervisor(FromDictMixin):
             self.past_power = [0]
 
         if "Decision" in self.control_type:
-            self.eager_on = self.control["policy"]["eager_on"]
-            self.eager_off = self.control["policy"]["eager_off"]
-            self.sequential = self.control["policy"]["sequential"]
-            self.even_dist = self.control["policy"]["even_dist"]
-            self.baseline = self.control["policy"]["baseline"]
+            self.eager_on = self.controller["policy"]["eager_on"]
+            self.eager_off = self.controller["policy"]["eager_off"]
+            self.sequential = self.controller["policy"]["sequential"]
+            self.even_dist = self.controller["policy"]["even_dist"]
+            self.baseline = self.controller["policy"]["baseline"]
 
         self.active_constant = np.zeros(self.n_stacks)
         self.active = np.zeros(self.n_stacks)
@@ -132,14 +135,8 @@ class Supervisor(FromDictMixin):
             self.initialize_plant_stacks()
 
         # Establish system rating
-        if "system_rating_MW" in self.control:
-            self.system_rating_MW = self.control["system_rating_MW"]
-        else:
-            self.n_stacks * self.stack_rating_kW / 1e3
-
-        # Establish system rating
-        if "system_rating_MW" in self.control:
-            self.system_rating_MW = self.control["system_rating_MW"]
+        if "system_rating_MW" in self.supervisor:
+            self.system_rating_MW = self.supervisor["system_rating_MW"]
         else:
             self.n_stacks * self.stack_rating_kW / 1e3
 
@@ -147,6 +144,9 @@ class Supervisor(FromDictMixin):
         # initialize electrolyzer objects
         stacks = np.empty(self.n_stacks, Stack)
         self.stack["dt"] = self.dt
+        self.stack["degradation"] = self.degradation
+        self.stack["cell_params"] = self.cell_params
+
         for i in range(self.n_stacks):
             stacks[i] = Stack.from_dict(self.stack)
             # TODO: replace with proper logging

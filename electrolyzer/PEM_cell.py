@@ -14,7 +14,7 @@ from scipy.constants import R, physical_constants, convert_temperature
 from .type_dec import FromDictMixin
 
 
-def electrolyzer_model(X, a, b, c, d, e, f):
+def PEM_electrolyzer_model(X, a, b, c, d, e, f):
     """
     Given a power input (kW), temperature (C), and set of coefficients, returns
     current (A).  Coefficients can be determined using non-linear least squares
@@ -33,11 +33,13 @@ P_ATMO, _, _ = physical_constants["standard atmosphere"]  # Pa
 
 
 @define
-class Cell(FromDictMixin):
+class PEM_Cell(FromDictMixin):
     # Chemical Params #
     ###################
 
     cell_area: float
+    turndown_ratio: float
+    max_current_density: float
 
     # If we rework this class to be even more generic, we can have these be specified
     # as configuration params
@@ -49,6 +51,12 @@ class Cell(FromDictMixin):
     M: float = 2.016  # molecular weight [g/mol]
     lhv: float = 33.33  # lower heating value of H2 [kWh/kg]
     hhv: float = 39.41  # higher heating value of H2 [kWh/kg]
+
+    # def __attrs_post_init__(self) -> None:
+    #     # Cell area #
+    #     #############
+
+    #     self.cell_area = self.cell_params['cell_area']
 
     def calc_reversible_voltage(self):
         """

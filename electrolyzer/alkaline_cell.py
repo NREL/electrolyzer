@@ -10,7 +10,7 @@ import numpy as np
 # * refine convertACtoDC(); compare with empirical ESIF model
 # * refine calcFaradaicEfficiency(); compare with other model
 # * add a separate script to show results
-from attrs import define
+from attrs import field, define
 from scipy.constants import R, physical_constants, convert_temperature
 
 from .type_dec import FromDictMixin
@@ -115,32 +115,48 @@ F, _, _ = physical_constants["Faraday constant"]  # Faraday's constant [C/mol]
 
 
 @define
-class AlkalineCell(FromDictMixin):
+class Alkaline_Cell(FromDictMixin):
     # Cell parameters #
     ####################
+    model: str
+
+    electrode: dict
+    electrolyte: dict
+    membrane: dict
+
+    pressure_operating: float
+    turndown_ratio: float
+    max_current_density: float
+
+    cell_area: float = field(init=False)
 
     # Stack parameters #
     ####################
-    pressure_operating: float  # [bar]
-    n_cells: int  # number of cells
+    # pressure_operating: float = field(init=False)  # [bar]
+    # n_cells: int =field(init=False) # number of cells  #TODO delete this line
 
     # Electrode parameters #
     ####################
-    A_electrode: float  # [cm^2]
-    e_a: float  # [cm] anode thickness
-    e_c: float  # [cm] cathode thickness
-    d_am: float  # [cm] Anode-membrane gap
-    d_cm: float  # [cm] Cathode-membrane gap
-    d_ac: float  # [cm] Anode-Cathode gap
+    A_electrode: float = field(init=False)  # [cm^2]
+    e_a: float = field(init=False)  # [cm] anode thickness
+    e_c: float = field(init=False)  # [cm] cathode thickness
+    d_am: float = field(init=False)  # [cm] Anode-membrane gap
+    d_cm: float = field(init=False)  # [cm] Cathode-membrane gap
+    d_ac: float = field(init=False)  # [cm] Anode-Cathode gap
 
     # Electrolyte parameters #
     ####################
-    w_koh: float
+    w_koh: float = field(init=False)
+    electrolyte_concentration_percent: float = field(init=False)
+    M_KOH: float = field(init=False)
+    M_H2O: float = field(init=False)
+    m: float = field(init=False)
+    M: float = field(init=False)
 
     # Membrane parameters #
     ####################
-    A_membrane: float  # [cm^2]
-    e_m: float  # [cm] membrane thickness
+    A_membrane: float = field(init=False)  # [cm^2]
+    e_m: float = field(init=False)  # [cm] membrane thickness
 
     # THIS ONE IS PRIMARLY BASED ON
     # VALUES FROM [Henou, Agbossou, 2014]
@@ -156,6 +172,28 @@ class AlkalineCell(FromDictMixin):
     hhv: float = 39.41  # higher heating value of H2 [kWh/kg]
 
     def __attrs_post_init__(self) -> None:
+        # Cell parameters #
+        ###################
+        self.cell_area = self.electrode["A_electrode"]
+
+        # Electrode parameters #
+        ########################
+        self.A_electrode = self.electrode["A_electrode"]
+        self.e_a = self.electrode["e_a"]
+        self.e_c = self.electrode["e_c"]
+        self.d_am = self.electrode["d_am"]
+        self.d_cm = self.electrode["d_cm"]
+        self.d_ac = self.electrode["d_ac"]
+
+        # Electrolyte parameters #
+        ##########################
+        self.w_koh = self.electrolyte["w_koh"]
+
+        # Membrane parameters #
+        #######################
+        self.A_membrane = self.membrane["A_membrane"]
+        self.e_m = self.membrane["e_m"]
+
         # calcluate molarity and molality of KOH solution
         self.electrolyte_concentration_percent = self.w_koh / 100
         self.create_electrolyte()
@@ -237,7 +275,7 @@ class AlkalineCell(FromDictMixin):
         moles_of_solute = grams_of_solute / self.M_KOH  # [mols of solute / solution]
 
         # solvent is water
-        self.M_H20 = 2 * self.M_H + self.M_0  # [g/mol]
+        self.M_H2O = 2 * self.M_H + self.M_0  # [g/mol]
         grams_of_solvent = solution_weight_g * (
             1 - self.electrolyte_concentration_percent
         )
@@ -617,7 +655,6 @@ class AlkalineCell(FromDictMixin):
         eta_F = self.calc_faradaic_efficiency(T_C, I)
         # Eqn 10 [mol/sec]
         h2_prod_mol = eta_F * I / (self.z * F)
-        # n_cells is number of cells in series
         mfr = self.M_H * self.z * h2_prod_mol  # [g/sec]
         # z is valency number of electrons transferred per ion
         # for oxygen, z=4
