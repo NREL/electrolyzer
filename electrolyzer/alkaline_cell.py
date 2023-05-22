@@ -616,7 +616,7 @@ class AlkalineCell(FromDictMixin):
 
         eta_F = self.calc_faradaic_efficiency(T_C, I)
         # Eqn 10 [mol/sec]
-        h2_prod_mol = eta_F * self.n_cells * I / (self.z * F)
+        h2_prod_mol = eta_F * I / (self.z * F)
         # n_cells is number of cells in series
         mfr = self.M_H * self.z * h2_prod_mol  # [g/sec]
         # z is valency number of electrons transferred per ion

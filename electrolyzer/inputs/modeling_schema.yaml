@@ -29,7 +29,7 @@ properties:
             dt:
                 type: number
                 default: 1.0
-                description: simulation time step
+                description: simulation time step in seconds
             initialize:
                 type: boolean
                 default: False
@@ -38,6 +38,7 @@ properties:
                 type: number
                 default: 0.0
                 description: starting power for an initialized electrolyzer plant
+
 
             stack:
                 type: object
