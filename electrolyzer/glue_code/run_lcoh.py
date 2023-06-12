@@ -174,6 +174,6 @@ def run_lcoh(input_modeling, power_signal, lcoe, optimize=False):
     lcoh_dict, lcoh = _run_lcoh_full(cost_sys)
 
     if optimize:
-        return [np.sum(kg_produced), max_curr_density, lcoh]
+        return [np.sum(kg_produced), max_curr_density, lcoh, lcoh_dict, lcoh_options]
 
     return lcoh_dict, lcoh

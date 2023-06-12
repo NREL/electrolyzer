@@ -236,6 +236,8 @@ class Cell(FromDictMixin):
         """
         eta_F = self.calc_faradaic_efficiency(Idc)
         mfr = eta_F * Idc * self.M / (self.n * F) * (1 - dryer_loss / 100.0)  # [g/s]
+
+        # mfr=eta_F*(Idc/self.cell_area)*self.M/(self.n*F)*(1-dryer_loss/100.0) # [g/s]
         # mfr = mfr / 1000. * 3600. # [kg/h]
         mfr = mfr / 1e3  # [kg/s]
         return mfr
