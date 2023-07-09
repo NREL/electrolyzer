@@ -14,11 +14,11 @@ def test_basic_model():
     modeling_options = load_modeling_yaml(fname_input_modeling)
 
     # just make sure nothing is empty
-    assert modeling_options["electrolyzer"]["dt"]
-    assert modeling_options["electrolyzer"]["name"]
-    assert modeling_options["electrolyzer"]["description"]
+    assert modeling_options["electrolyzer"]["supervisor"]
+    assert modeling_options["electrolyzer"]["controller"]
     assert modeling_options["electrolyzer"]["stack"]
-    assert modeling_options["electrolyzer"]["control"]
+    assert modeling_options["electrolyzer"]["degradation"]
+    assert modeling_options["electrolyzer"]["cell_params"]
 
 
 def test_model_defaults():
