@@ -55,7 +55,8 @@ properties:
             controller:
                 type: object
                 default:
-                    DecisionControl:
+                    control_type: DecisionControl
+                    policy:
                         eager_on: False
                         eager_off: False
                         sequential: False
@@ -167,7 +168,15 @@ properties:
 
             degradation:
                 type: object
-                default: {}
+                default:
+                    PEM_params:
+                        rate_steady: 1.41737929e-10
+                        rate_fatigue: 3.33330244e-07
+                        rate_onoff: 1.47821515e-04
+                    ALK_params:
+                        rate_steady: 5.092592592592592e-09
+                        rate_fatigue: 1.2820512820512823e-05
+                        rate_onoff: 3.0726072607260716e-04
                 description: Degradation rates for PEM or alkaline electrolyzer
                 properties:
                     # cell_type:
