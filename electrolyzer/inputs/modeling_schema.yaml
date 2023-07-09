@@ -54,7 +54,13 @@ properties:
 
             controller:
                 type: object
-                default: {}
+                default:
+                    DecisionControl:
+                        eager_on: False
+                        eager_off: False
+                        sequential: False
+                        even_dist: False
+                        baseline: True
                 description: Set control properties for electrolyzers
                 properties:
                     # system_rating_MW:
@@ -241,6 +247,7 @@ properties:
                         properties:
                             cell_area:
                                 type: number
+                                default: 1000
                                 description: Area of individual Cells in the Stack (cm^2)
                                 unit: cm^2
                             turndown_ratio:

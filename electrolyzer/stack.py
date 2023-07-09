@@ -226,7 +226,7 @@ class Stack(FromDictMixin):
             self.update_temperature(I, V)
             self.update_degradation()
             power_left -= self.calc_stack_power(I, V) * 1e3
-            H2_mfr = self.cell.calc_mass_flow_rate(I) * self.n_cells
+            H2_mfr = self.cell.calc_mass_flow_rate(self.temperature, I) * self.n_cells
             self.stack_state, H2_mfr = self.update_dynamics(H2_mfr, self.stack_state)
 
             H2_mass_out = H2_mfr * self.dt

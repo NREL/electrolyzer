@@ -220,9 +220,10 @@ class PEM_Cell(FromDictMixin):
     # ------------------------------------------------------------
     # Post H2 production
     # ------------------------------------------------------------
-    def calc_faradaic_efficiency(self, I):
+    def calc_faradaic_efficiency(self, T_C, I):
         """
         I [A]: current
+        T_C [C]: cell temperature (currently unused)
         return :: eta_F [-]: Faraday's efficiency
         Reference: https://res.mdpi.com/d_attachment/energies/energies-13-04792/article_deploy/energies-13-04792-v2.pdf
         """  # noqa
@@ -236,10 +237,11 @@ class PEM_Cell(FromDictMixin):
 
         return eta_F
 
-    def calc_mass_flow_rate(self, Idc, dryer_loss=6.5):
+    def calc_mass_flow_rate(self, T_C, Idc, dryer_loss=6.5):
         """
         Idc [A]: stack current
         dryer_loss [%]: loss of drying H2
+        T_C [C]: cell temperature (currently unused)
         return :: mfr [kg/s]: mass flow rate
         """
         eta_F = self.calc_faradaic_efficiency(Idc)
