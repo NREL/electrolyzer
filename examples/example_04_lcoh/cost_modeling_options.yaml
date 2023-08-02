@@ -4,16 +4,25 @@ general:
 electrolyzer:
     dt: 1 # default
 
+    supervisor:
+        system_rating_MW: 3.5 # required for optimize=True run
+        n_stacks: 7
+
+    controller:
+        control_type: BaselineDeg # defaul
+
     stack:
-        cell_area: 1000.0
+
         max_current: 2000
         temperature: 60
         n_cells: 100
         stack_rating_kW: 500
-    control:
-        n_stacks: 7
-        system_rating_MW: 3.5 # required for optimize=True run
-        control_type: BaselineDeg # default
+
+    cell_params:
+        cell_type: PEM
+        PEM_params:
+            cell_area: 1000
+
     costs:
         plant_params:
             plant_life: 25 #years (30 from [9])
@@ -37,6 +46,54 @@ electrolyzer:
         finances:
             discount_rate: 0.04 #(page 3 below Eqn (4) of [7]) (pg 9 near Eqn (23) of [9] has 0.05)
             install_factor: 0.33 # [%] Install Factor (Table B.2 of [9]) (Section 2.1 of [5])
+
+
+
+
+
+# =================================== v OLD YAML v =================================== #
+
+# general:
+#     verbose: False # default
+
+# electrolyzer:
+#     dt: 1 # default
+
+#     stack:
+#         cell_area: 1000.0
+#         max_current: 2000
+#         temperature: 60
+#         n_cells: 100
+#         stack_rating_kW: 500
+#     control:
+#         n_stacks: 7
+#         system_rating_MW: 3.5 # required for optimize=True run
+#         control_type: BaselineDeg # default
+#     costs:
+#         plant_params:
+#             plant_life: 25 #years (30 from [9])
+#             pem_location: onshore #onshore,offshore,in-turbine
+#             grid_connected: False
+#         feedstock:
+#             water_feedstock_cost: 0.0008 #$/kg-H20 (pg 18 Section 4.3 of [4])
+#             water_per_kgH2: 10 #kgH20/kgH2 placeholder - should be output from model in future
+#         opex:
+#             var_OM: 0.0013 #$/kW [2018$/MWh] (Table S25 on page 10 of [1])
+#             fixed_OM: 12.8 #$/kW-year      (Table S25 on page 10 of [1])
+#         stack_replacement:
+#             d_eol: 0.7212 #end of life cell voltage value
+#             stack_replacement_percent: 0.15 #% of CapEx ()
+#         capex:
+#             capex_learning_rate: 0.13 # ([1] Table S19) (Table B.2 [9]) (Exhibit 8 [8])
+#             ref_cost_bop: 747 #$/kW #(Appendix E Table A8 [5]) (Table 3 of [2])
+#             ref_size_bop: 200 #kW
+#             ref_cost_pem: 695 #$/kW (kinda of Figure 5b & Fig 6 of [5]) (Table 6 of [3]) (Slide 12 of [6])
+#             ref_size_pem: 2000 #kW
+#         finances:
+#             discount_rate: 0.04 #(page 3 below Eqn (4) of [7]) (pg 9 near Eqn (23) of [9] has 0.05)
+#             install_factor: 0.33 # [%] Install Factor (Table B.2 of [9]) (Section 2.1 of [5])
+
+# =================================== ^ OLD YAML ^ =================================== #
 
 #[1]: Joule TEA 2021: https://ars.els-cdn.com/content/image/1-s2.0-S2542435121003068-mmc1.pdf
 #[2]: PNNL 2020: https://www.pnnl.gov/sites/default/files/media/file/Hydrogen_Methodology.pdf 

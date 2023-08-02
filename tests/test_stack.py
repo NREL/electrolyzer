@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_array_equal, assert_array_almost_equal
 
-from electrolyzer import Cell, Stack
+from electrolyzer import Stack, PEM_cell
 
 
 def create_stack():
@@ -28,7 +28,7 @@ def test_init(mocker):
     # mock side effects (these will have their own unit tests)
     spy_calc_state_space = mocker.spy(Stack, "calc_state_space")
     spy_create_polarization = mocker.spy(Stack, "create_polarization")
-    spy_cell = mocker.spy(Cell, "from_dict")
+    spy_cell = mocker.spy(PEM_cell, "from_dict")
 
     # for this example, set stack rating explicitly
     stack_dict = {
@@ -85,7 +85,7 @@ def test_run(mocker):
 
     spy_update_deg = mocker.spy(Stack, "update_degradation")
     spy_calc_p = mocker.spy(Stack, "calc_stack_power")
-    spy_calc_mfr = mocker.spy(Cell, "calc_mass_flow_rate")
+    spy_calc_mfr = mocker.spy(PEM_cell, "calc_mass_flow_rate")
     spy_update_dynamics = mocker.spy(Stack, "update_dynamics")
     spy_update_status = mocker.spy(Stack, "update_status")
 

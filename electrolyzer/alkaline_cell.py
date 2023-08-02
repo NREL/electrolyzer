@@ -605,6 +605,9 @@ class Alkaline_Cell(FromDictMixin):
         T_C [C]: temperature
         return :: E_rev0 [V/cell]: open-circuit voltage
 
+        TODO: Are we correcting for temperature twice? U_rev0 should be just 1.229 and
+        never change (possibly?)
+
         Reference: [Gambou, Guilbert,et al 2022]: Eqn 14
         """
         # General Nerst Equation

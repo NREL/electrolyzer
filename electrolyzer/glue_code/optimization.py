@@ -15,12 +15,12 @@ def calc_rated_system(modeling_options: dict):
     """
     options = copy.deepcopy(modeling_options)
 
-    system_rating_kW = options["electrolyzer"]["control"]["system_rating_MW"] * 1e3
+    system_rating_kW = options["electrolyzer"]["supervisor"]["system_rating_MW"] * 1e3
     stack_rating_kW = options["electrolyzer"]["stack"]["stack_rating_kW"]
 
     # determine number of stacks (int) closest to stack rating (float)
     n_stacks = round(system_rating_kW / stack_rating_kW)
-    options["electrolyzer"]["control"]["n_stacks"] = n_stacks
+    options["electrolyzer"]["supervisor"]["n_stacks"] = n_stacks
 
     # determine new desired rating to adjust parameters for
     new_rating = system_rating_kW / n_stacks
@@ -59,6 +59,8 @@ def calc_rated_stack(modeling_options: dict):
     """
     options = modeling_options["electrolyzer"]["stack"]
     options["dt"] = modeling_options["electrolyzer"]["dt"]
+    options["cell_params"] = modeling_options["electrolyzer"]["cell_params"]
+    options["degradation"] = modeling_options["electrolyzer"]["degradation"]
     stack = Stack.from_dict(options)
 
     n_cells = stack.n_cells

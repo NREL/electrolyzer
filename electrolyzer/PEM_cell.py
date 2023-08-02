@@ -244,7 +244,7 @@ class PEM_Cell(FromDictMixin):
         T_C [C]: cell temperature (currently unused)
         return :: mfr [kg/s]: mass flow rate
         """
-        eta_F = self.calc_faradaic_efficiency(Idc)
+        eta_F = self.calc_faradaic_efficiency(T_C, Idc)
         mfr = eta_F * Idc * self.M / (self.n * F) * (1 - dryer_loss / 100.0)  # [g/s]
         # mfr = mfr / 1000. * 3600. # [kg/h]
         mfr = mfr / 1e3  # [kg/s]
