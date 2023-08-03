@@ -271,8 +271,8 @@ class Stack(FromDictMixin):
         currents = np.arange(0.01, self.max_current + interval, interval)
         pieces = []
         prev_temp = self.temperature
-        # for temp in np.arange(40, 60 + 5, 5):
-        for temp in np.arange(self.temperature - 5, self.temperature + 10, 5):
+        for temp in np.arange(40, 60 + 5, 5):
+            # for temp in np.arange(self.temperature - 5, self.temperature + 10, 5):
             self.temperature = temp
             powers = self.calc_stack_power(currents)
             tmp = pd.DataFrame({"current_A": currents, "power_kW": powers})

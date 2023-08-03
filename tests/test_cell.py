@@ -7,12 +7,16 @@ from electrolyzer import PEM_Cell as Cell
 
 @pytest.fixture
 def cell():
-    return Cell.from_dict({"cell_area": 1000})
+    return Cell.from_dict(
+        {"cell_area": 1000, "turndown_ratio": 0.1, "max_current_density": 2}
+    )
 
 
 def test_init():
     """`Cell` should initialize properly from a Dictionary."""
-    cell = Cell.from_dict({"cell_area": 1000})
+    cell = Cell.from_dict(
+        {"cell_area": 1000, "turndown_ratio": 0.1, "max_current_density": 2}
+    )
 
     assert cell.cell_area == 1000
     assert cell.n == 2
@@ -139,16 +143,16 @@ def test_calc_faradaic_efficiency(cell: Cell):
     I = 500
 
     # should increase with current
-    eta = cell.calc_faradaic_efficiency(I)
+    eta = cell.calc_faradaic_efficiency(60, I)
 
     I2 = 2000
-    eta2 = cell.calc_faradaic_efficiency(I2)
+    eta2 = cell.calc_faradaic_efficiency(60, I2)
 
     assert eta2 > eta
 
     # should approach 1 as current increases
     I3 = 5000
-    eta3 = cell.calc_faradaic_efficiency(I3)
+    eta3 = cell.calc_faradaic_efficiency(60, I3)
 
     assert_almost_equal(eta3, 0.996, decimal=3)
 
@@ -157,10 +161,10 @@ def test_calc_mass_flow_rate(cell: Cell):
     """Should calculate the mass flow rate of H2."""
     I = 1000
 
-    mfr = cell.calc_mass_flow_rate(I)
+    mfr = cell.calc_mass_flow_rate(60, I)
 
     # should increase with current
     I2 = 2000
-    mfr2 = cell.calc_mass_flow_rate(I2)
+    mfr2 = cell.calc_mass_flow_rate(60, I2)
 
     assert mfr2 > mfr
