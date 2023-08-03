@@ -20,7 +20,7 @@ def create_stack():
         "max_current": 2000,
         "temperature": 60,
         "n_cells": 100,
-        "stack_rating_kW": 750,
+        # "stack_rating_kW": 750,
         "degradation": {
             "PEM_params": {
                 "rate_steady": 1.41737929e-10,
@@ -325,7 +325,10 @@ def test_update_dynamics(stack: Stack):
     """
     Should update stack state and apply H2 MFR filter to simulate dynamic response.
     """
-    H2_mfr = stack.cell.calc_mass_flow_rate(stack.max_current) * stack.n_cells
+    H2_mfr = (
+        stack.cell.calc_mass_flow_rate(stack.temperature, stack.max_current)
+        * stack.n_cells
+    )
     new_state, filtered_H2_mfr = stack.update_dynamics(H2_mfr, stack.stack_state)
 
     # filtered state should be lower than
@@ -407,7 +410,10 @@ def test_calc_electrolysis_efficiency(stack: Stack):
     """
     Should calculate values of electrolysis efficiency for given DC Power input and MFR.
     """
-    H2_mfr = stack.cell.calc_mass_flow_rate(stack.max_current * 0.8) * stack.n_cells
+    H2_mfr = (
+        stack.cell.calc_mass_flow_rate(stack.temperature, stack.max_current * 0.8)
+        * stack.n_cells
+    )
     eta_values = stack.calc_electrolysis_efficiency(
         stack.stack_rating_kW, H2_mfr * 3600
     )
@@ -416,7 +422,10 @@ def test_calc_electrolysis_efficiency(stack: Stack):
 
     # efficiency should decrease as we approach max current due to overpotentials
     assert eta_values[0] > 80  # highest efficiency around 80% capacity
-    H2_mfr2 = stack.cell.calc_mass_flow_rate(stack.max_current) * stack.n_cells
+    H2_mfr2 = (
+        stack.cell.calc_mass_flow_rate(stack.temperature, stack.max_current)
+        * stack.n_cells
+    )
     eta_values2 = stack.calc_electrolysis_efficiency(
         stack.stack_rating_kW, H2_mfr2 * 3600
     )
@@ -425,11 +434,27 @@ def test_calc_electrolysis_efficiency(stack: Stack):
 
 def test_dt_behavior():
     stack_dict = {
-        "n_cells": 100,
-        "cell_area": 1000,
-        "temperature": 60,
-        "max_current": 2000,
         "dt": 1,
+        "cell_type": "PEM",
+        "max_current": 2000,
+        "temperature": 60,
+        "n_cells": 100,
+        # "stack_rating_kW": 750,
+        "degradation": {
+            "PEM_params": {
+                "rate_steady": 1.41737929e-10,
+                "rate_fatigue": 3.33330244e-07,
+                "rate_onoff": 1.47821515e-04,
+            }
+        },
+        "cell_params": {
+            "cell_type": "PEM",
+            "PEM_params": {
+                "cell_area": 1000,
+                "turndown_ratio": 0.1,
+                "max_current_density": 2,
+            },
+        },
     }
 
     stack1 = Stack.from_dict(stack_dict)

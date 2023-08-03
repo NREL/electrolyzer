@@ -23,7 +23,7 @@ class Stack(FromDictMixin):
     degradation: dict = field()
     cell_params: dict = field()
 
-    stack_rating_kW: float = field()
+    stack_rating_kW: float = field(default=None)
     include_degradation_penalty: bool = field(default=True)
     max_current: float = field(default=1000)  # TODO this is a bad default, fix later
 
@@ -125,17 +125,7 @@ class Stack(FromDictMixin):
         # Stack parameters #
         ####################
 
-        # [kW] nameplate power rating
-        self.stack_rating_kW = self.stack_rating_kW or self.calc_stack_power(
-            self.max_current
-        )
-
-        self.stack_rating = self.stack_rating_kW * 1e3  # [W] nameplate rating
-
         if self.cell_type == "PEM":
-            # set minimum power
-            self.turndown_ratio = self.cell_params["PEM_params"]["turndown_ratio"]
-            self.min_power = self.min_power or (self.turndown_ratio * self.stack_rating)
 
             # initialize electrolzyer cell model
             # self.cell_params["electrochemistry"] = self.cell_params["PEM_params"]
@@ -153,9 +143,6 @@ class Stack(FromDictMixin):
             self.electrolyzer_model = PEM_electrolyzer_model
 
         elif self.cell_type == "alkaline":
-            # set minimum power
-            self.turndown_ratio = self.cell_params["ALK_params"]["turndown_ratio"]
-            self.min_power = self.min_power or (self.turndown_ratio * self.stack_rating)
 
             # initialize electrolyzer cell model
             # self.cell_params["electrochemistry"] = self.cell_params["alkaline_params"]
@@ -173,6 +160,20 @@ class Stack(FromDictMixin):
             self.electrolyzer_model = ael_electrolyzer_model
 
         # self.cell = Cell.from_dict({"cell_area": self.cell_area})
+
+        # [kW] nameplate power rating
+        self.stack_rating_kW = self.stack_rating_kW or self.calc_stack_power(
+            self.max_current
+        )
+
+        self.stack_rating = self.stack_rating_kW * 1e3  # [W] nameplate rating
+
+        # set minimum power
+        if self.cell_type == "PEM":
+            self.turndown_ratio = self.cell_params["PEM_params"]["turndown_ratio"]
+        elif self.cell_type == "alkaline":
+            self.turndown_ratio = self.cell_params["ALK_params"]["turndown_ratio"]
+        self.min_power = self.min_power or (self.turndown_ratio * self.stack_rating)
 
         self.fit_params = self.create_polarization()
 
@@ -268,7 +269,7 @@ class Stack(FromDictMixin):
     # ------------------------------------------------------------
     def create_polarization(self):
         interval = 10.0
-        currents = np.arange(0.01, self.max_current + interval, interval)
+        currents = np.arange(0, self.max_current + interval, interval)
         pieces = []
         prev_temp = self.temperature
         for temp in np.arange(40, 60 + 5, 5):
