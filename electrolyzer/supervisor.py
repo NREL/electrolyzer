@@ -639,13 +639,13 @@ class Supervisor(FromDictMixin):
 
     def check_turn_on_off(self, P_avail):
         max_num_active = min(
-            [self.n_stacks, int(np.floor(P_avail / 1e3 / self.stack_min_power))]
+            [self.n_stacks, int(np.floor(P_avail / self.stack_min_power))]
         )  # maximum possible number of electrolzyers running
         min_num_active = min(
             [
                 self.n_stacks,
                 int(
-                    (P_avail / 1e3 > self.stack_min_power)
+                    (P_avail > self.stack_min_power)
                     * np.ceil(P_avail / self.stack_rating)
                 ),
             ]
@@ -687,10 +687,10 @@ class Supervisor(FromDictMixin):
             # Option 4: eager on, eager off has very frequent switching - not useful
 
         if self.baseline:
-            if P_avail / 1e3 > self.n_stacks * self.stack_min_power:
+            if P_avail > self.n_stacks * self.stack_min_power:
                 num_on = max([0, self.n_stacks - n_active])
                 num_off = 0
-            elif P_avail / 1e3 < self.n_stacks * self.stack_min_power:
+            elif P_avail < self.n_stacks * self.stack_min_power:
                 num_on = 0
                 num_off = min([self.n_stacks, n_active])
 
@@ -751,8 +751,8 @@ class Supervisor(FromDictMixin):
 
         for i, a in enumerate(self.active):
             if a:
-                P_i[i] += self.stack_min_power * 1e3
-                P_avail -= self.stack_min_power * 1e3
+                P_i[i] += self.stack_min_power
+                P_avail -= self.stack_min_power
 
         if (self.even_dist or self.baseline) & (sum(self.active) > 0):
             P_indv = P_avail / sum(self.active)  # check this if power gets too large
@@ -769,9 +769,9 @@ class Supervisor(FromDictMixin):
 
             for i, a in enumerate(self.active):
                 if a:
-                    if P_avail >= (self.stack_rating - self.stack_min_power * 1e3):
-                        P_i[i] += self.stack_rating - self.stack_min_power * 1e3
-                        P_avail -= self.stack_rating - self.stack_min_power * 1e3
+                    if P_avail >= (self.stack_rating - self.stack_min_power):
+                        P_i[i] += self.stack_rating - self.stack_min_power
+                        P_avail -= self.stack_rating - self.stack_min_power
                     elif P_avail >= 0:
                         P_i[i] += P_avail
                         P_avail -= P_avail

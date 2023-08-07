@@ -9,7 +9,7 @@ electrolyzer:
         n_stacks: 7
 
     controller:
-        control_type: BaselineDeg # defaul
+        control_type: BaselineDeg # default
 
     stack:
 
