@@ -18,7 +18,7 @@ def test_calc_rated_system():
 
     tuned_options = calc_rated_system(modeling_options)
 
-    assert tuned_options["electrolyzer"]["control"]["n_stacks"] == 4
+    assert tuned_options["electrolyzer"]["supervisor"]["n_stacks"] == 4
     assert_almost_equal(
         tuned_options["electrolyzer"]["stack"]["stack_rating_kW"], 500.0
     )
