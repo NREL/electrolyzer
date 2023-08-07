@@ -100,6 +100,9 @@ def calc_rated_stack(modeling_options: dict):
     stack.cell.cell_area = cell_area[0]
     stack_p = stack.calc_stack_power(stack.max_current)
 
-    modeling_options["electrolyzer"]["stack"]["cell_area"] = cell_area[0]
+    # TODO alkaline cell characteristic area optimization
+    modeling_options["electrolyzer"]["cell_params"]["PEM_params"][
+        "cell_area"
+    ] = cell_area[0]
     modeling_options["electrolyzer"]["stack"]["n_cells"] = n_cells
     modeling_options["electrolyzer"]["stack"]["stack_rating_kW"] = stack_p

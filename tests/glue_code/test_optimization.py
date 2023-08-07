@@ -38,7 +38,7 @@ def test_calc_rated_stack():
     assert modeling_options["electrolyzer"]["stack"]["n_cells"] > 100
 
     # cell area should get smaller
-    modeling_options["electrolyzer"]["stack"]["cell_area"] < 1000
+    modeling_options["electrolyzer"]["cell_params"]["PEM_params"]["cell_area"] < 1000
 
     assert_almost_equal(
         modeling_options["electrolyzer"]["stack"]["stack_rating_kW"], 500.000, decimal=3
@@ -59,7 +59,9 @@ def test_calc_rated_stack_lower():
 
     assert modeling_options["electrolyzer"]["stack"]["n_cells"] == 161
     assert_almost_equal(
-        modeling_options["electrolyzer"]["stack"]["cell_area"], 1007.021, decimal=3
+        modeling_options["electrolyzer"]["cell_params"]["PEM_params"]["cell_area"],
+        1007.021,
+        decimal=3,
     )
     assert_almost_equal(
         modeling_options["electrolyzer"]["stack"]["stack_rating_kW"], 750.000, decimal=3
