@@ -126,12 +126,7 @@ class Stack(FromDictMixin):
         ####################
 
         if self.cell_type == "PEM":
-
             # initialize electrolzyer cell model
-            # self.cell_params["electrochemistry"] = self.cell_params["PEM_params"]
-            # self.cell_params["electrochemistry"] = self.cell_params["PEM_params"]
-            # del self.cell_params["ALK_params"]
-
             self.cell = PEM_Cell.from_dict(self.cell_params["PEM_params"])
 
             # set degradation rates
@@ -143,12 +138,7 @@ class Stack(FromDictMixin):
             self.electrolyzer_model = PEM_electrolyzer_model
 
         elif self.cell_type == "alkaline":
-
             # initialize electrolyzer cell model
-            # self.cell_params["electrochemistry"] = self.cell_params["alkaline_params"]
-            # self.cell_params["electrochemistry"] = self.cell_params.pop("ALK_params")
-            # del self.cell_params["ALK_params"]
-
             self.cell = Alkaline_Cell.from_dict(self.cell_params["ALK_params"])
 
             # set degradation rates
@@ -158,8 +148,6 @@ class Stack(FromDictMixin):
 
             # electrolyzer_model for current calculation
             self.electrolyzer_model = ael_electrolyzer_model
-
-        # self.cell = Cell.from_dict({"cell_area": self.cell_area})
 
         # [kW] nameplate power rating
         self.stack_rating_kW = self.stack_rating_kW or self.calc_stack_power(
