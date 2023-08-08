@@ -5,8 +5,8 @@ electrolyzer:
     dt: 1 # default
 
     supervisor:
-        sysetm_rating_MW: .005
-        n_stacks: 1
+        system_rating_MW: 1
+        n_stacks: 20
 
     stack:
         cell_type: alkaline

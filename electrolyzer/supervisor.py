@@ -214,6 +214,8 @@ class Supervisor(FromDictMixin):
         elif self.control_type == "DecisionControl":
             stack_power = self.decision_ctrl(power_in)
             curtailed_wind = 0
+        else:
+            print("Supervisor control_type not recognized")
 
         return stack_power, curtailed_wind
 
@@ -755,7 +757,9 @@ class Supervisor(FromDictMixin):
                 P_avail -= self.stack_min_power
 
         if (self.even_dist or self.baseline) & (sum(self.active) > 0):
-            P_indv = P_avail / sum(self.active)  # check this if power gets too large
+            P_indv = np.min(
+                [P_avail / sum(self.active), self.stack_rating - self.stack_min_power]
+            )
             for i, a in enumerate(self.active):
                 if a:
                     P_i[i] += P_indv

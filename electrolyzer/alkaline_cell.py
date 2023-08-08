@@ -423,9 +423,9 @@ class Alkaline_Cell(FromDictMixin):
         # Eqn 13 - Tafel slope for cathode
         bc = (R * T_anode) / (self.z * F * alpha_c)
         # Eqn 11 - anode activation energy
-        V_act_a = ba * np.log(ja / j0a)
+        V_act_a = ba * np.maximum(0, np.log(ja / j0a))
         # Eqn 12 - cathode activation energy
-        V_act_c = bc * np.log(jc / j0c)
+        V_act_c = bc * np.maximum(0, np.log(jc / j0c))
 
         return V_act_a, V_act_c
 

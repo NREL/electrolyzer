@@ -10,6 +10,7 @@ import numpy as np
 from electrolyzer import run_electrolyzer
 
 
+# the alkaline system is 20 5 kW stacks for an overall system rating of 1 MW
 fname_input_modeling = os.path.join(
     os.path.dirname(os.path.realpath(__file__)), "default_alkaline.yaml"
 )

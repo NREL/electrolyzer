@@ -78,21 +78,18 @@ fname_input_modeling = str(
 modeling_input = load_modeling_yaml(fname_input_modeling)
 pprint.pprint(modeling_input)
 
-# elec_sys, result_df = run_electrolyzer(modeling_input, power)
-# plot_results(result_df)
-
-modeling_input["electrolyzer"]["control"]["control_type"] = "PowerSharingRotation"
-
-# elec_sys, result_df = run_electrolyzer(modeling_input, power)
-# plot_results(result_df)
-
-modeling_input["electrolyzer"]["control"]["control_type"] = "SequentialRotation"
+modeling_input["electrolyzer"]["controller"]["control_type"] = "PowerSharingRotation"
 
 elec_sys, result_df = run_electrolyzer(modeling_input, power)
 plot_results(result_df)
 
-modeling_input["electrolyzer"]["control"]["control_type"] = "Decision_ctrl"
-modeling_input["electrolyzer"]["control"]["policy"] = {
+modeling_input["electrolyzer"]["controller"]["control_type"] = "SequentialRotation"
+
+elec_sys, result_df = run_electrolyzer(modeling_input, power)
+plot_results(result_df)
+
+modeling_input["electrolyzer"]["controller"]["control_type"] = "DecisionControl"
+modeling_input["electrolyzer"]["controller"]["policy"] = {
     "eager_on": True,
     "eager_off": False,
     "sequential": True,
@@ -103,8 +100,8 @@ modeling_input["electrolyzer"]["control"]["policy"] = {
 elec_sys, result_df = run_electrolyzer(modeling_input, power)
 plot_results(result_df)
 
-modeling_input["electrolyzer"]["control"]["control_type"] = "Decision_ctrl"
-modeling_input["electrolyzer"]["control"]["policy"] = {
+modeling_input["electrolyzer"]["controller"]["control_type"] = "DecisionControl"
+modeling_input["electrolyzer"]["controller"]["policy"] = {
     "eager_on": False,
     "eager_off": True,
     "sequential": False,
@@ -115,8 +112,8 @@ modeling_input["electrolyzer"]["control"]["policy"] = {
 elec_sys, result_df = run_electrolyzer(modeling_input, power)
 plot_results(result_df)
 
-modeling_input["electrolyzer"]["control"]["control_type"] = "Decision_ctrl"
-modeling_input["electrolyzer"]["control"]["policy"] = {
+modeling_input["electrolyzer"]["controller"]["control_type"] = "DecisionControl"
+modeling_input["electrolyzer"]["controller"]["policy"] = {
     "eager_on": False,
     "eager_off": False,
     "sequential": True,

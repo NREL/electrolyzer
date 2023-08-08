@@ -21,6 +21,6 @@ variation_value = turbine_rating - base_value
 power_test_signal = (base_value + variation_value * np.cos(test_signal_angle)) * 1e6
 
 lcoe = 44.18 * (1 / 1000)
-res = run_lcoh(fname_input_modeling, power_test_signal, lcoe, optimize=True)
+res = run_lcoh(fname_input_modeling, power_test_signal, lcoe, optimize=False)
 
 print(res)

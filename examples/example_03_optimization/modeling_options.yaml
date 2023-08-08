@@ -6,8 +6,16 @@ electrolyzer:
 
     supervisor:
         system_rating_MW: 2.0
+
     controller:
         control_type: BaselineDeg
+
+    stack:
+        cell_type: PEM
+        max_current: 2000
+        temperature: 60
+        n_cells: 100
+        stack_rating_kW: 500
 
 
     # stack:
