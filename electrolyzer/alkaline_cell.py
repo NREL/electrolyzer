@@ -130,11 +130,6 @@ class Alkaline_Cell(FromDictMixin):
 
     cell_area: float = field(init=False)
 
-    # Stack parameters #
-    ####################
-    # pressure_operating: float = field(init=False)  # [bar]
-    # n_cells: int =field(init=False) # number of cells  #TODO delete this line
-
     # Electrode parameters #
     ####################
     A_electrode: float = field(init=False)  # [cm^2]

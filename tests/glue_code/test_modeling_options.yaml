@@ -15,7 +15,6 @@ electrolyzer:
 
     stack:
         cell_type: PEM
-        # cell_area: 1000.0
         max_current: 2000
         temperature: 60
         n_cells: 100
@@ -25,9 +24,3 @@ electrolyzer:
         cell_type: PEM
         PEM_params:
             cell_area: 1000.0
-
-
-    # control:
-        # system_rating_MW: 2
-        # n_stacks: 7
-        # control_type: BaselineDeg # default
