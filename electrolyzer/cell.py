@@ -30,6 +30,7 @@ def electrolyzer_model(X, a, b, c, d, e, f):
 #############
 F, _, _ = physical_constants["Faraday constant"]  # Faraday's constant [C/mol]
 P_ATMO, _, _ = physical_constants["standard atmosphere"]  # Pa
+P_STD, _, _ = physical_constants["standard-state pressure"]  # Pa (1bar)
 
 
 @define
@@ -61,10 +62,11 @@ class Cell(FromDictMixin):
         T_K = convert_temperature([temperature], "C", "K")[0]
         E_rev_0 = self.calc_reversible_voltage()
         p_anode = P_ATMO  # (Pa) assumed atmo
-        p_cathode = P_ATMO
+        p_cathode = 30 * P_STD  # (Pa) 30 bars
 
         # noqa: E501
         # Arden Buck equation T=C, https://www.omnicalculator.com/chemistry/vapour-pressure-of-water#vapor-pressure-formulas # noqa
+        # Reasonable at temperatures between 0-100C
         p_h2O_sat = (
             0.61121
             * np.exp(
@@ -73,12 +75,13 @@ class Cell(FromDictMixin):
             )
         ) * 1e3  # (Pa)
 
-        # General Nernst equation
+        # Dalton's Law to find partial pressure of reactants at each electrode.
+        p_h2 = p_cathode - p_h2O_sat
+        p_o2 = p_anode - p_h2O_sat
+
+        # General Nernst equation, 10.1016/j.ijhydene.2017.03.046
         E_cell = E_rev_0 + ((R * T_K) / (self.n * F)) * (
-            np.log(
-                ((p_anode - p_h2O_sat) / P_ATMO)
-                * np.sqrt((p_cathode - p_h2O_sat) / P_ATMO)
-            )
+            np.log((p_h2 / P_ATMO) * np.sqrt(p_o2 / P_ATMO))
         )
 
         return E_cell
