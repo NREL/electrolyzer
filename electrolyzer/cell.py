@@ -60,7 +60,7 @@ class Cell(FromDictMixin):
         """Calculates open circuit voltage using the Nernst equation."""
         T_K = convert_temperature([temperature], "C", "K")[0]
         E_rev_0 = self.calc_reversible_voltage()
-        p_anode = P_ATMO  # (Pa) assumed atmo
+        p_anode = 30 * P_ATMO  # (Pa) assumed atmo
         p_cathode = P_ATMO
 
         # noqa: E501
