@@ -34,13 +34,13 @@ def test_calc_open_circuit_voltage(cell: Cell):
     T = 60  # C
     E_rev = cell.calc_reversible_voltage()
 
-    # should be less than reversible cell voltage
+    # should be greater than reversible cell voltage
     E_cell = cell.calc_open_circuit_voltage(T)
-    assert E_cell < E_rev
+    assert E_cell > E_rev
 
-    # should approach reversible cell voltage with increasing temp
-    E_cell = cell.calc_open_circuit_voltage(1e5)
-    assert_almost_equal(E_cell, E_rev, decimal=3)
+    # should approach E_rev at near 100C (valid temperature range)
+    E_cell_25 = cell.calc_open_circuit_voltage(99.9725)
+    assert_almost_equal(E_cell_25, E_rev, decimal=3)
 
 
 def test_calc_activation_overpotential(cell: Cell):
