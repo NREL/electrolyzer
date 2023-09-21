@@ -4,13 +4,13 @@ general:
 electrolyzer:
     dt: 1 # default
     initialize: True #
-    initial_power_kW: 500.
+    initial_power_kW: 1250.
     stack:
-        cell_area: 1000.0
-        max_current: 2000
+        cell_area: 1500.0
+        max_current: 3000
         temperature: 60
-        n_cells: 100
-        stack_rating_kW: 500.
+        n_cells: 200
+        stack_rating_kW: 1250.
     control:
         n_stacks: 1
         control_type: BaselineDeg # default
