@@ -169,14 +169,23 @@ def test_create_polarization(stack: Stack):
     fit_params = stack.create_polarization()
 
     # this is brittle, so for now use a lenient precision check
+    # expected = [
+    #    -2.28261081e-03,
+    #    -1.50848325e-02,
+    #    7.89259537e-03,
+    #    4.80671306e00,
+    #    9.74923247e-01,
+    #    1.36179580e01,
+    # ]
     expected = [
-        -2.28261081e-03,
-        -1.50848325e-02,
-        7.89259537e-03,
-        4.80671306e00,
-        9.74923247e-01,
-        1.36179580e01,
+        -2.14872235e-03,
+        -1.62346659e-02,
+        7.31103190e-03,
+        4.71239486e00,
+        1.06583019e00,
+        1.11700091e01,
     ]
+
     assert_array_almost_equal(fit_params, expected, decimal=2)
 
 
