@@ -7,13 +7,6 @@ from electrolyzer import Stack, PEM_Cell
 
 
 def create_stack():
-    # stack_dict = {
-    #     "n_cells": 100,
-    #     "cell_area": 1000,
-    #     "temperature": 60,
-    #     "max_current": 2000,
-    #     "dt": 1,
-    # }
     stack_dict = {
         "dt": 1,
         "cell_type": "PEM",

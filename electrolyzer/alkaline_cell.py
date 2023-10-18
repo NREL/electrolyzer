@@ -5,7 +5,7 @@ import warnings
 
 import numpy as np
 
-# TODOs
+# TODO
 # * refine calcCellVoltage(); compare with alkaline models
 # * refine convertACtoDC(); compare with empirical ESIF model
 # * refine calcFaradaicEfficiency(); compare with other model
