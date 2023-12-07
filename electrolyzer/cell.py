@@ -231,7 +231,7 @@ class Cell(FromDictMixin):
 
         return eta_F
 
-    def calc_mass_flow_rate(self, Idc, dryer_loss=6.5):
+    def calc_mass_flow_rate(self, Idc, dryer_loss=0.2):
         """
         Idc [A]: stack current
         dryer_loss [%]: loss of drying H2

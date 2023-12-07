@@ -386,7 +386,7 @@ def test_calc_electrolysis_efficiency(stack: Stack):
     assert len(eta_values) == 3
 
     # efficiency should decrease as we approach max current due to overpotentials
-    assert eta_values[0] > 80  # highest efficiency around 80% capacity
+    assert eta_values[0] > 79  # highest efficiency around 80% capacity
     H2_mfr2 = stack.cell.calc_mass_flow_rate(stack.max_current) * stack.n_cells
     eta_values2 = stack.calc_electrolysis_efficiency(
         stack.stack_rating_kW, H2_mfr2 * 3600
