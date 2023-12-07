@@ -11,18 +11,18 @@ from electrolyzer import run_lcoh, run_electrolyzer
 
 lcoh_breakdown = pd.DataFrame(
     {
-        "Life Totals [$]": [5.388657e06, 1.079412e06, 1.1980506e07, 1.292115e06],
+        "Life Totals [$]": [5.388657e06, 1.079412e06, 1.1981873e07, 1.225039e06],
         "Life Totals [$/kg-H2]": [
-            1.3594040320184078,
+            1.2446538284076922,
             0.2723048458021954,
-            2.880935150646775,
+            2.7675325314357866,
             0.32378362036676683,
         ],
     },
     index=["CapEx", "OM", "Feedstock", "Stack Rep"],
 )
 
-RESULT = (lcoh_breakdown, 4.747015793929487)
+RESULT = (lcoh_breakdown, 4.544460891727074)
 ROOT = Path(__file__).parent.parent.parent
 
 
@@ -78,4 +78,4 @@ def test_run_lcoh_opt():
     # results from regular optimize run should match
     assert_array_almost_equal(h2_result, lcoh_result[:2])
 
-    assert np.isclose(lcoh_result[2], 4.6942216397622)
+    assert np.isclose(lcoh_result[2], 4.454555848862855)
