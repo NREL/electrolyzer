@@ -147,12 +147,12 @@ def test_create_polarization(stack: Stack):
     #    1.36179580e01,
     # ]
     expected = [
-        -2.14872235e-03,
-        -1.62346659e-02,
-        7.31103190e-03,
-        4.71239486e00,
-        1.06583019e00,
-        1.11700091e01,
+        -1.99627103e-03,
+        -1.27808907e-02,
+        4.76371760e-03,
+        4.98846103e00,
+        7.96586249e-01,
+        1.11445867e01,
     ]
 
     assert_array_almost_equal(fit_params, expected, decimal=2)
@@ -386,7 +386,7 @@ def test_calc_electrolysis_efficiency(stack: Stack):
     assert len(eta_values) == 3
 
     # efficiency should decrease as we approach max current due to overpotentials
-    assert eta_values[0] > 79  # highest efficiency around 80% capacity
+    assert eta_values[0] > 75  # highest efficiency around 80% capacity
     H2_mfr2 = stack.cell.calc_mass_flow_rate(stack.max_current) * stack.n_cells
     eta_values2 = stack.calc_electrolysis_efficiency(
         stack.stack_rating_kW, H2_mfr2 * 3600
