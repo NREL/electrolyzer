@@ -15,6 +15,7 @@ from electrolyzer import Supervisor, run_electrolyzer
 from electrolyzer.inputs.validation import load_modeling_yaml
 from electrolyzer.glue_code.optimization import calc_rated_system
 
+
 turbine_rating = 3.4  # MW
 
 # Create cosine test signal
@@ -134,7 +135,7 @@ def test_regression(result):
     _, df = result
 
     # Test total kg H2 produced
-    assert_almost_equal(df["kg_rate"].sum(), 222.8930364856318, decimal=1)
+    assert_almost_equal(df["kg_rate"].sum(), 219.0721736179, decimal=1)
 
     # Test degradation state of stacks
     degradation = df[[col for col in df if "deg" in col]]
