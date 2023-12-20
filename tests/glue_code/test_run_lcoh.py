@@ -3,6 +3,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from pytest import approx
 from numpy.testing import assert_array_almost_equal
 from pandas.testing import assert_frame_equal
 
@@ -11,18 +12,23 @@ from electrolyzer import run_lcoh, run_electrolyzer
 
 lcoh_breakdown = pd.DataFrame(
     {
-        "Life Totals [$]": [5.388657e06, 1.079412e06, 1.1978406e07, 1.292115e06],
+        "Life Totals [$]": [
+            3644933.857141541,
+            1.079412e06,
+            1.1978406e07,
+            873998.0388080929,
+        ],
         "Life Totals [$/kg-H2]": [
-            1.3594040320184078,
-            0.2723048458021954,
-            3.021946178528131,
-            0.32378362036676683,
+            0.9355497543594925,
+            0.2770541303907053,
+            3.074512588406419,
+            0.22433017513212933,
         ],
     },
     index=["CapEx", "OM", "Feedstock", "Stack Rep"],
 )
 
-RESULT = (lcoh_breakdown, 5.066329157584628)
+RESULT = (lcoh_breakdown, 4.511446648288746)
 ROOT = Path(__file__).parent.parent.parent
 
 
@@ -51,7 +57,7 @@ def test_run_lcoh():
         atol=1e-1,
     )
 
-    assert np.isclose(calc_result[1], RESULT[1])
+    assert calc_result[1] == approx(RESULT[1])
 
 
 def test_run_lcoh_opt():
@@ -73,9 +79,9 @@ def test_run_lcoh_opt():
     lcoh_result = run_lcoh(fname_input_modeling, power_test_signal, lcoe, optimize=True)
 
     # h2 prod, max curr density, LCOH
-    assert len(lcoh_result) == 3
+    assert len(lcoh_result) == 5
 
     # results from regular optimize run should match
     assert_array_almost_equal(h2_result, lcoh_result[:2])
 
-    assert np.isclose(lcoh_result[2], 5.0099777502488525)
+    assert lcoh_result[2] == approx(4.4616439830304415)

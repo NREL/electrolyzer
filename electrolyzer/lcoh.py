@@ -143,13 +143,17 @@ class LCOH(FromDictMixin):
         b_capex = np.log2(1 - lr)
         Sr0 = self.capex["ref_size_pem"]  # ref size [kW]
         Cr0 = self.capex["ref_cost_pem"]  # ref cost [$/kW]
-        # self.plant_rating_kW
-        Sr = (self.stack_rating_kW / Sr0) ** b_capex  # scale sized
+
+        if self.plant_rating_kW <= Sr0:
+            Sr = 1
+        else:
+            Sr = (self.plant_rating_kW / Sr0) ** b_capex  # scale sized
+
         adj_IF = 1 + self.IF * self.os
         Cr_uninstalled = Cr0 * Sr  # [$/kW]
         Cr_installed = adj_IF * Cr0 * Sr  # [$/kW]
-        capex_pem_dollars_installed = Cr_installed * self.stack_rating_kW
-        capex_pem_dollars_uninstalled = Cr_uninstalled * self.stack_rating_kW
+        capex_pem_dollars_installed = Cr_installed * self.plant_rating_kW
+        capex_pem_dollars_uninstalled = Cr_uninstalled * self.plant_rating_kW
         self.capex_summary["PEM"] = {
             "Uninstalled [$/kW]": Cr_uninstalled,
             "Installed [$/kW]": Cr_installed,
@@ -164,12 +168,17 @@ class LCOH(FromDictMixin):
         b_capex = np.log2(1 - lr)
         Sr0 = self.capex["ref_size_bop"]
         Cr0 = self.capex["ref_cost_bop"]
-        Sr = (self.stack_rating_kW / Sr0) ** b_capex  # scale sized
+
+        if self.plant_rating_kW <= Sr0:
+            Sr = 1
+        else:
+            Sr = (self.plant_rating_kW / Sr0) ** b_capex  # scale sized
+
         adj_IF = 1 + self.IF * self.os
         Cr_uninstalled = Cr0 * Sr  # [$/kW]
         Cr_installed = adj_IF * Cr0 * Sr  # [$/kW]
-        capex_bop_dollars_installed = Cr_installed * self.stack_rating_kW
-        capex_bop_dollars_uninstalled = Cr_uninstalled * self.stack_rating_kW
+        capex_bop_dollars_installed = Cr_installed * self.plant_rating_kW
+        capex_bop_dollars_uninstalled = Cr_uninstalled * self.plant_rating_kW
         self.capex_summary["BOP"] = {
             "Uninstalled [$/kW]": Cr_uninstalled,
             "Installed [$/kW]": Cr_installed,
@@ -187,7 +196,7 @@ class LCOH(FromDictMixin):
 
         # pem_capex = self.calc_pem_capex(self.plant_rating_kW)
         # bop_capex = self.calc_bop_capex(self.plant_rating_kW)
-        sizeup_factor = self.plant_rating_kW / self.stack_rating_kW
+        sizeup_factor = self.plant_rating_kW / self.plant_rating_kW
         pem_capex = sizeup_factor * self.calc_pem_capex()
         bop_capex = sizeup_factor * self.calc_bop_capex()
         total_capex = pem_capex + bop_capex
