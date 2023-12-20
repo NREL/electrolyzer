@@ -141,7 +141,7 @@ class Cell(FromDictMixin):
         # pulled from https://www.sciencedirect.com/science/article/pii/S0360319917309278?via%3Dihub # noqa
         # TODO: pulled from empirical data, is there a better eq?
         lambda_nafion = ((-2.89556 + (0.016 * T_K)) + 1.625) / 0.1875
-        t_nafion = 0.03  # (cm) TODO: confirm actual thickness?
+        t_nafion = 0.02  # (cm) confirmed that membrane thickness is <0.02.
 
         # TODO: confirm with Nel, is there a better eq?
         sigma_nafion = ((0.005139 * lambda_nafion) - 0.00326) * np.exp(
@@ -231,7 +231,7 @@ class Cell(FromDictMixin):
 
         return eta_F
 
-    def calc_mass_flow_rate(self, Idc, dryer_loss=6.5):
+    def calc_mass_flow_rate(self, Idc, dryer_loss=0.2):
         """
         Idc [A]: stack current
         dryer_loss [%]: loss of drying H2
