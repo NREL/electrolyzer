@@ -1,6 +1,7 @@
 """
 This module defines the Hydrogen Electrolyzer control code.
 """
+
 import numpy as np
 import pandas as pd
 from attrs import field, define

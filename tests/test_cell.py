@@ -1,4 +1,5 @@
 """This module provides unit tests for `Cell`."""
+
 import pytest
 from numpy.testing import assert_almost_equal
 

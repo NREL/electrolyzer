@@ -1,6 +1,7 @@
 """
 This module defines a Hydrogen Electrolyzer Cell
 """
+
 # TODOs
 # * refine calcCellVoltage(); compare with alkaline models
 # * refine convertACtoDC(); compare with empirical ESIF model

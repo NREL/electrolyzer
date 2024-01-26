@@ -1,6 +1,7 @@
 """
 This example runs the Electrolyzer on its own and generates polarization curves.
 """
+
 import numpy as np
 import matplotlib.pyplot as plt
 

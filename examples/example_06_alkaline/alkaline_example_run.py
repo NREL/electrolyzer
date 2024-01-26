@@ -2,6 +2,7 @@
 This example performs a fully controlled electrolyzer simulation using the
 `run_electrolyzer` function. See `example_run.ipynb` for an interactive option.
 """
+
 import os
 
 import numpy as np

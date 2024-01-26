@@ -1,6 +1,7 @@
 """
 This example performs an LCOH calculation for an electrolyzer system.
 """
+
 import os
 
 import numpy as np

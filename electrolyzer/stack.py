@@ -1,4 +1,5 @@
 """This module defines a Hydrogen Electrolyzer Stack."""
+
 from typing import Union
 
 import numpy as np

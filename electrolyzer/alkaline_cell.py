@@ -1,6 +1,7 @@
 """
 This module defines an Alkaline Hydrogen Electrolyzer Cell
 """
+
 import warnings
 
 import numpy as np
