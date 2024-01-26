@@ -1,4 +1,6 @@
 """This module defines a Hydrogen Electrolyzer Stack."""
+from typing import Union
+
 import numpy as np
 import scipy
 import pandas as pd
@@ -33,7 +35,7 @@ class Stack(FromDictMixin):
     cell_area: float = field(init=False)
 
     # initialized in __attrs_post_init
-    cell: None = field(init=False)  # TODO set type as cell parent class
+    cell: Union[PEMCell, AlkalineCell] = field(init=False)
     fit_params: NDArrayFloat = field(init=False)
     stack_rating: float = field(init=False)
     electrolyzer_model = field(init=False)
