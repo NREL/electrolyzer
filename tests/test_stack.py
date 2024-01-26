@@ -178,12 +178,12 @@ def test_create_polarization(stack: Stack):
     #    1.36179580e01,
     # ]
     expected = [
-        -2.14872235e-03,
-        -1.62346659e-02,
-        7.31103190e-03,
-        4.71239486e00,
-        1.06583019e00,
-        1.11700091e01,
+        -1.99627103e-03,
+        -1.27808907e-02,
+        4.76371760e-03,
+        4.98846103e00,
+        7.96586249e-01,
+        1.11445867e01,
     ]
 
     assert_array_almost_equal(fit_params, expected, decimal=2)

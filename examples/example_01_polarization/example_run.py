@@ -39,6 +39,7 @@ p_fit = elec.calc_stack_power(
         (elec.calc_stack_power(cur), stack_dict["temperature"]), *elec.fit_params
     )
 )
+
 p_actual = elec.calc_stack_power(cur)
 voltage = elec.cell.calc_cell_voltage(cur, stack_dict["temperature"])
 fit_error = p_actual - p_fit
