@@ -76,7 +76,7 @@ def calc_rated_stack(modeling_options: dict):
     # start with an initial calculation of stack power to compare with desired
     stack_p = stack.calc_stack_power(stack.max_current)
     desired_rating = stack.stack_rating_kW
-    desired_curr_density = stack.max_current / stack.cell_area
+    desired_curr_density = stack.max_current / stack.cell.cell_area
 
     # nudge cell count up or down until it overshoots
     if stack_p > desired_rating:
@@ -100,10 +100,7 @@ def calc_rated_stack(modeling_options: dict):
     stack_p = stack.calc_stack_power(stack.max_current)
 
     # TODO alkaline cell characteristic area optimization
-    modeling_options["electrolyzer"]["cell_params"]["PEM_params"][
-        "cell_area"
-    ] = stack.cell.cell_area
-    modeling_options["electrolyzer"]["stack"]["cell_area"] = res[0]
+    modeling_options["electrolyzer"]["cell_params"]["PEM_params"]["cell_area"] = res[0]
     modeling_options["electrolyzer"]["stack"]["max_current"] = res[1]
     modeling_options["electrolyzer"]["stack"]["n_cells"] = n_cells
     modeling_options["electrolyzer"]["stack"]["stack_rating_kW"] = stack_p
