@@ -1,6 +1,7 @@
 """
 This module defines a Hydrogen Electrolyzer Cell
 """
+
 # TODOs
 # * refine calcCellVoltage(); compare with alkaline models
 # * refine convertACtoDC(); compare with empirical ESIF model
@@ -11,10 +12,10 @@ import numpy as np
 from attrs import define
 from scipy.constants import R, physical_constants, convert_temperature
 
-from .type_dec import FromDictMixin
+from electrolyzer.type_dec import FromDictMixin
 
 
-def electrolyzer_model(X, a, b, c, d, e, f):
+def PEM_electrolyzer_model(X, a, b, c, d, e, f):
     """
     Given a power input (kW), temperature (C), and set of coefficients, returns
     current (A).  Coefficients can be determined using non-linear least squares
@@ -34,11 +35,13 @@ P_STD, _, _ = physical_constants["standard-state pressure"]  # Pa (1bar)
 
 
 @define
-class Cell(FromDictMixin):
+class PEMCell(FromDictMixin):
     # Chemical Params #
     ###################
 
     cell_area: float
+    turndown_ratio: float
+    max_current_density: float
 
     # If we rework this class to be even more generic, we can have these be specified
     # as configuration params
@@ -215,9 +218,10 @@ class Cell(FromDictMixin):
     # ------------------------------------------------------------
     # Post H2 production
     # ------------------------------------------------------------
-    def calc_faradaic_efficiency(self, I):
+    def calc_faradaic_efficiency(self, T_C, I):
         """
         I [A]: current
+        T_C [C]: cell temperature (currently unused)
         return :: eta_F [-]: Faraday's efficiency
         Reference: https://res.mdpi.com/d_attachment/energies/energies-13-04792/article_deploy/energies-13-04792-v2.pdf
         """  # noqa
@@ -231,13 +235,14 @@ class Cell(FromDictMixin):
 
         return eta_F
 
-    def calc_mass_flow_rate(self, Idc, dryer_loss=0.2):
+    def calc_mass_flow_rate(self, T_C, Idc, dryer_loss=6.5):
         """
         Idc [A]: stack current
         dryer_loss [%]: loss of drying H2
+        T_C [C]: cell temperature (currently unused)
         return :: mfr [kg/s]: mass flow rate
         """
-        eta_F = self.calc_faradaic_efficiency(Idc)
+        eta_F = self.calc_faradaic_efficiency(T_C, Idc)
         mfr = eta_F * Idc * self.M / (self.n * F) * (1 - dryer_loss / 100.0)  # [g/s]
         # mfr = mfr / 1000. * 3600. # [kg/h]
         mfr = mfr / 1e3  # [kg/s]

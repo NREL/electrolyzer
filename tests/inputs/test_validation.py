@@ -14,11 +14,11 @@ def test_basic_model():
     modeling_options = load_modeling_yaml(fname_input_modeling)
 
     # just make sure nothing is empty
-    assert modeling_options["electrolyzer"]["dt"]
-    assert modeling_options["electrolyzer"]["name"]
-    assert modeling_options["electrolyzer"]["description"]
+    assert modeling_options["electrolyzer"]["supervisor"]
+    assert modeling_options["electrolyzer"]["controller"]
     assert modeling_options["electrolyzer"]["stack"]
-    assert modeling_options["electrolyzer"]["control"]
+    assert modeling_options["electrolyzer"]["degradation"]
+    assert modeling_options["electrolyzer"]["cell_params"]
 
 
 def test_model_defaults():
@@ -28,17 +28,34 @@ def test_model_defaults():
     )
     modeling_options = load_modeling_yaml(fname_input_modeling)
 
+    # electrolyzer properties
     assert modeling_options["general"]["verbose"] is False
     assert modeling_options["electrolyzer"]["name"] == "electrolyzer_001"
-    assert modeling_options["electrolyzer"]["description"] == "A PEM electrolyzer model"
+    assert modeling_options["electrolyzer"]["description"] == "An electrolyzer model"
     assert modeling_options["electrolyzer"]["dt"] == 1.0
 
+    # controller properties
+    controller_opts = modeling_options["electrolyzer"]["controller"]
+    assert controller_opts["control_type"] == "DecisionControl"
+    assert controller_opts["policy"]["baseline"] is True
+
+    # stack properties
     stack_opts = modeling_options["electrolyzer"]["stack"]
+    assert stack_opts["cell_type"] == "PEM"
     assert stack_opts["include_degradation_penalty"] is True
 
-    control_opts = modeling_options["electrolyzer"]["control"]
-    assert control_opts["n_stacks"] == 1
-    assert control_opts["control_type"] == "BaselineDeg"
+    # degradation properties
+    degradation_opts = modeling_options["electrolyzer"]["degradation"]
+    assert degradation_opts["PEM_params"]["rate_onoff"] == 1.47821515e-04
+    assert degradation_opts["ALK_params"]["rate_onoff"] == 3.0726072607260716e-04
+
+    # cell parameters
+    cell_opts = modeling_options["electrolyzer"]["cell_params"]
+    assert cell_opts["cell_type"] == "PEM"
+    assert cell_opts["PEM_params"]["turndown_ratio"] == 0.1
+
+    # cost parameters TODO: include cost parameter defaults
+    # cost_opts = modeling_options["electrolyzer"]["costs"]
 
 
 def test_model_invalid_spec():

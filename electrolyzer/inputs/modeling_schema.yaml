@@ -13,7 +13,6 @@ properties:
                 default: False
                 description: Prints additional outputs to screen (and to a file log in the future)
 
-    # Consider future option to split this out similar to windIO schema
     electrolyzer:
         type: object
         default: {}
@@ -24,12 +23,12 @@ properties:
                 description: An optional name for the electrolyzer model
             description:
                 type: string
-                default: A PEM electrolyzer model
+                default: An electrolyzer model
                 description: An optional description for the electrolyzer model
             dt:
                 type: number
                 default: 1.0
-                description: simulation time step
+                description: simulation time step in seconds
             initialize:
                 type: boolean
                 default: False
@@ -39,15 +38,80 @@ properties:
                 default: 0.0
                 description: starting power for an initialized electrolyzer plant
 
+            supervisor:
+                type: object
+                default: {}
+                description:
+                properties:
+                    system_rating_MW:
+                        type: number
+                        description: System rating
+                        unit: MW
+                    n_stacks:
+                        type: integer
+                        default: 1
+                        description: Number of electrolyzer Stacks to run in simulation
+
+            controller:
+                type: object
+                default:
+                    control_type: DecisionControl
+                    policy:
+                        eager_on: False
+                        eager_off: False
+                        sequential: False
+                        even_dist: False
+                        baseline: True
+                description: Set control properties for electrolyzers
+                properties:
+                    control_type:
+                        type: string
+                        enum: [PowerSharingRotation, SequentialRotation, EvenSplitEagerDeg, EvenSplitHesitantDeg, SequentialEvenWearDeg, SequentialSingleWearDeg, BaselineDeg, DecisionControl]
+                        default: BaselineDeg
+                        description:
+
+                    policy:
+                        type: object
+                        default:
+                            eager_on: False
+                            eager_off: False
+                            sequential: False
+                            even_dist: False
+                            baseline: True
+                        description: Set of control policies for Decision_ctrl only
+                        properties:
+                            eager_on:
+                                type: boolean
+                                default: False
+                                description: Whether the supervisor is eager or hesitant to switch stacks on
+                            eager_off:
+                                type: boolean
+                                default: False
+                                description: Whether the supervisor is eager or hesitant to switch stacks off
+                            sequential:
+                                type: boolean
+                                default: False
+                                description: Sequential or degradation-based stack switching order
+                            even_dist:
+                                type: boolean
+                                default: False
+                                description: Whether the input power is divided evenly amongst the stacks or variably
+                            baseline:
+                                type: boolean
+                                default: True
+                                description: Baseline decision controller is to treat all stacks as a single large capacity electrolzyer
+
+
             stack:
                 type: object
                 default: {}
                 description: Set properties for an electrolyzer stack
                 properties:
-                    cell_area:
-                        type: number
-                        description: Area of individual Cells in the Stack (cm^2)
-                        unit: cm^2
+                    cell_type:
+                        type: string
+                        default: PEM
+                        enum: [PEM, alkaline]
+                        description: Cell electrochemistry (PEM, alkaline, or other)
                     max_current:
                         type: number
                         description: Maximum current of Stack
@@ -59,10 +123,6 @@ properties:
                     n_cells:
                         type: integer
                         description: Number of Cells per Stack
-                    min_power:
-                        type: number
-                        description: Minimum power for Stack operation
-                        unit: kW
                     stack_rating_kW:
                         type: number
                         description: Stack rated power
@@ -72,50 +132,185 @@ properties:
                         default: True
                         description: Toggle whether degradation is applied to the Stack operation
 
-            control:
+            degradation:
                 type: object
-                default: {}
-                description: Set control properties for electrolyzers
+                default:
+                    PEM_params:
+                        rate_steady: 1.41737929e-10
+                        rate_fatigue: 3.33330244e-07
+                        rate_onoff: 1.47821515e-04
+                    ALK_params:
+                        rate_steady: 5.092592592592592e-09
+                        rate_fatigue: 1.2820512820512823e-05
+                        rate_onoff: 3.0726072607260716e-04
+                description: Degradation rates for PEM or alkaline electrolyzer
                 properties:
-                    system_rating_MW:
-                        type: number
-                        description: System rating
-                        unit: MW
-                    n_stacks:
-                        type: integer
-                        default: 1
-                        description: Number of electrolyzer Stacks to run in simulation
-                    control_type:
-                        type: string
-                        enum: [PowerSharingRotation, SequentialRotation, EvenSplitEagerDeg, EvenSplitHesitantDeg, SequentialEvenWearDeg, SequentialSingleWearDeg, BaselineDeg, DecisionControl]
-                        default: BaselineDeg
-                        description:
+                    PEM_params:
+                        type: object
+                        default:
+                            rate_steady: 1.41737929e-10
+                            rate_fatigue: 3.33330244e-07
+                            rate_onoff: 1.47821515e-04
+                        description: PEM degradation rates
+                        properties:
+                            rate_steady:
+                                type: number
+                                default: 1.41737929e-10
+                                description: Rate of voltage degradation under steady operation alone
+                            rate_fatigue:
+                                type: number
+                                default: 3.33330244e-07
+                                description: Rate of voltage degradation under fluctuating operation alone
+                            rate_onoff:
+                                type: number
+                                default: 1.47821515e-04
+                                description: Rate of voltage degradation per on/off cycle
 
-                policy:
-                    type: object
-                    default: {}
-                    description: Set of control policies for Decision_ctrl only
-                    properties:
-                        eager_on:
-                            type: boolean
-                            default: False
-                            description: Whether the supervisor is eager or hesitant to switch stacks on
-                        eager_off:
-                            type: boolean
-                            default: False
-                            description: Whether the supervisor is eager or hesitant to switch stacks off
-                        sequential:
-                            type: boolean
-                            default: False
-                            description: Sequential or degradation-based stack switching order
-                        even_dist:
-                            type: boolean
-                            default: False
-                            description: Whether the input power is divided evenly amongst the stacks or variably
-                        baseline:
-                            type: boolean
-                            default: True
-                            description: Baseline decision controller is to treat all stacks as a single large capacity electrolzyer
+                    ALK_params:
+                        type: object
+                        default:
+                            rate_steady: 5.092592592592592e-09
+                            rate_fatigue: 1.2820512820512823e-05
+                            rate_onoff: 3.0726072607260716e-04
+                        description: Alkaline degradation rates
+                        properties:
+                            rate_steady:
+                                type: number
+                                default: 5.092592592592592e-09
+                                description: Rate of voltage degradation under steady operation alone
+                            rate_fatigue:
+                                type: number
+                                default: 1.2820512820512823e-05
+                                description: Rate of voltage degradation under fluctuating operation alone
+                            rate_onoff:
+                                type: number
+                                default: 3.0726072607260716e-04
+                                description: Rate of voltage degradation per on/off cycle
+
+            cell_params:
+                type: object
+                default:
+                    cell_type: PEM
+                    max_current_density: 2
+                    PEM_params:
+                        cell_area: 1000
+                        turndown_ratio: 0.1
+                description: Cell parameters for PEM or alkaline cells
+                properties:
+                    cell_type:
+                        type: string
+                        default: PEM
+                        description: Cell electrochemistry (PEM, alkaline, or other)
+                    PEM_params:
+                        type: object
+                        default:
+                            cell_area: 1001
+                            turndown_ratio: 0.1
+                            max_current_density: 2
+                        description: PEM cell parameters
+                        properties:
+                            cell_area:
+                                type: number
+                                default: 1000
+                                description: Area of individual Cells in the Stack (cm^2)
+                                unit: cm^2
+                            turndown_ratio:
+                                type: number
+                                minimum: 0
+                                maximum: 1
+                                default: 0.1
+                                description: Minimum operating power as a fraction of rated power
+                            max_current_density:
+                                type: number
+                                default: 2
+                                units: A/cm^2
+                                description: Maximum current density
+                    ALK_params:
+                        type: object
+                        default: {}
+                        description: Alkaline cell parameters
+                        properties:
+                            model:
+                                type: string
+                                default: default_hri
+                                description: Alkaline cell construction
+                            pressure_operating:
+                                type: number
+                                default: 1
+                                unit: bar
+                                description: Cell operating pressure
+                            turndown_ratio:
+                                type: number
+                                minimum: 0
+                                maximum: 1
+                                default: 0.25
+                                description: Minimum operating power as a fraction of rated power
+                            max_current_density:
+                                type: number
+                                units: A/cm^2
+                                description: Maximum current density
+                            electrode:
+                                type: object
+                                default: {}
+                                description: Alkaline electrode parameters
+                                properties:
+                                    A_electrode:
+                                        type: number
+                                        default: 300
+                                        description: electrode total area
+                                        units: cm^2
+                                    e_a:
+                                        type: number
+                                        default: 0.2
+                                        description: anode thickness
+                                        units: cm
+                                    e_c:
+                                        type: number
+                                        default: 0.2
+                                        description: cathode thickness
+                                        units: cm
+                                    d_am:
+                                        type: number
+                                        default: 0.125
+                                        description: anode-membrane distance
+                                        units: cm
+                                    d_cm:
+                                        type: number
+                                        default: 0.125
+                                        description: cathode-membrane distance
+                                        units: cm
+                                    d_ac:
+                                        type: number
+                                        default: 0.25
+                                        description: anode-cathode distance
+                                        units: cm
+                            electrolyte:
+                                type: object
+                                default: {}
+                                description: Alkaline electrolyte parameters
+                                properties:
+                                    w_koh:
+                                        type: number
+                                        default: 30
+                                        minimum: 25
+                                        maximum: 33
+                                        units: wt. %
+                                        description: Percent KOH by weight
+                            membrane:
+                                type: object
+                                default: {}
+                                description: Alkaline membrane parameters
+                                properties:
+                                    A_membrane:
+                                        type: number
+                                        default: 300
+                                        units: cm^2
+                                        description: membrane surface area
+                                    e_m:
+                                        type: number
+                                        default: 0.05
+                                        units: cm
+                                        description: membrane thickness
 
             costs:
                 type: object

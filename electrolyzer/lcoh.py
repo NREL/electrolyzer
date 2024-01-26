@@ -1,11 +1,12 @@
 """
 This module defines the Hydrogen Electrolyzer control code.
 """
+
 import numpy as np
 import pandas as pd
 from attrs import field, define
 
-from .type_dec import NDArrayFloat, FromDictMixin
+from electrolyzer.type_dec import NDArrayFloat, FromDictMixin
 
 
 @define
