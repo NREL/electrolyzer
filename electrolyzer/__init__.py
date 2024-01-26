@@ -8,7 +8,7 @@ __version__ = "0.1.0"
 
 from .lcoh import LCOH
 from .stack import Stack
-from .PEM_cell import PEM_Cell, PEM_electrolyzer_model
+from .PEM_cell import PEMCell, PEM_electrolyzer_model
 from .supervisor import Supervisor
 from .alkaline_cell import Alkaline_Cell, ael_electrolyzer_model
 from .glue_code.run_lcoh import run_lcoh

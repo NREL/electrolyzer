@@ -1,8 +1,8 @@
-"""This module provides unit tests for `PEM_cell`"""
+"""This module provides unit tests for `PEMCell`"""
 
 import pytest
 
-from electrolyzer import PEM_Cell
+from electrolyzer import PEMCell
 
 
 # from numpy.testing import assert_almost_equal
@@ -10,4 +10,4 @@ from electrolyzer import PEM_Cell
 
 @pytest.fixture
 def cell():
-    return PEM_Cell.from_dict()
+    return PEMCell.from_dict()

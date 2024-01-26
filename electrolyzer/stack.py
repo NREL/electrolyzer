@@ -6,7 +6,7 @@ import rainflow
 from attrs import field, define
 from scipy.signal import tf2ss, cont2discrete
 
-from .PEM_cell import PEM_Cell, PEM_electrolyzer_model
+from .PEM_cell import PEMCell, PEM_electrolyzer_model
 from .type_dec import NDArrayFloat, FromDictMixin, array_converter
 from .alkaline_cell import Alkaline_Cell, ael_electrolyzer_model
 
@@ -127,7 +127,7 @@ class Stack(FromDictMixin):
 
         if self.cell_type == "PEM":
             # initialize electrolzyer cell model
-            self.cell = PEM_Cell.from_dict(self.cell_params["PEM_params"])
+            self.cell = PEMCell.from_dict(self.cell_params["PEM_params"])
 
             # set degradation rates
             self.rate_steady = self.degradation["PEM_params"]["rate_steady"]

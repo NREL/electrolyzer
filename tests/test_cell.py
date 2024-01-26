@@ -2,7 +2,7 @@
 import pytest
 from numpy.testing import assert_almost_equal
 
-from electrolyzer import PEM_Cell as Cell
+from electrolyzer import PEMCell as Cell
 
 
 @pytest.fixture

@@ -34,7 +34,7 @@ P_STD, _, _ = physical_constants["standard-state pressure"]  # Pa (1bar)
 
 
 @define
-class PEM_Cell(FromDictMixin):
+class PEMCell(FromDictMixin):
     # Chemical Params #
     ###################
 
