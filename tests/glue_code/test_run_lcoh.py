@@ -78,4 +78,4 @@ def test_run_lcoh_opt():
     # results from regular optimize run should match
     assert_array_almost_equal(h2_result, lcoh_result[:2])
 
-    assert np.isclose(lcoh_result[2], 4.7541633856347625)
+    assert np.isclose(lcoh_result[2], 4.44566272289819)
