@@ -8,7 +8,7 @@ from scipy.signal import tf2ss, cont2discrete
 
 from electrolyzer.PEM_cell import PEMCell, PEM_electrolyzer_model
 from electrolyzer.type_dec import NDArrayFloat, FromDictMixin, array_converter
-from electrolyzer.alkaline_cell import Alkaline_Cell, ael_electrolyzer_model
+from electrolyzer.alkaline_cell import AlkalineCell, ael_electrolyzer_model
 
 
 @define
@@ -139,7 +139,7 @@ class Stack(FromDictMixin):
 
         elif self.cell_type == "alkaline":
             # initialize electrolyzer cell model
-            self.cell = Alkaline_Cell.from_dict(self.cell_params["ALK_params"])
+            self.cell = AlkalineCell.from_dict(self.cell_params["ALK_params"])
 
             # set degradation rates
             self.rate_steady = self.degradation["ALK_params"]["rate_steady"]

@@ -115,7 +115,7 @@ F, _, _ = physical_constants["Faraday constant"]  # Faraday's constant [C/mol]
 
 
 @define
-class Alkaline_Cell(FromDictMixin):
+class AlkalineCell(FromDictMixin):
     # Cell parameters #
     ####################
     model: str
