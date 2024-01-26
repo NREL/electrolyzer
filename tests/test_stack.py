@@ -1,18 +1,35 @@
 """This module provides unit tests for `Stack`."""
+
 import numpy as np
 import pytest
 from numpy.testing import assert_array_equal, assert_array_almost_equal
 
-from electrolyzer import Cell, Stack
+from electrolyzer import Stack, PEMCell
 
 
 def create_stack():
     stack_dict = {
-        "n_cells": 100,
-        "cell_area": 1000,
-        "temperature": 60,
-        "max_current": 2000,
         "dt": 1,
+        "cell_type": "PEM",
+        "max_current": 2000,
+        "temperature": 60,
+        "n_cells": 100,
+        # "stack_rating_kW": 750,
+        "degradation": {
+            "PEM_params": {
+                "rate_steady": 1.41737929e-10,
+                "rate_fatigue": 3.33330244e-07,
+                "rate_onoff": 1.47821515e-04,
+            }
+        },
+        "cell_params": {
+            "cell_type": "PEM",
+            "PEM_params": {
+                "cell_area": 1000,
+                "turndown_ratio": 0.1,
+                "max_current_density": 2,
+            },
+        },
     }
     return Stack.from_dict(stack_dict)
 
@@ -28,22 +45,37 @@ def test_init(mocker):
     # mock side effects (these will have their own unit tests)
     spy_calc_state_space = mocker.spy(Stack, "calc_state_space")
     spy_create_polarization = mocker.spy(Stack, "create_polarization")
-    spy_cell = mocker.spy(Cell, "from_dict")
+    spy_cell = mocker.spy(PEMCell, "from_dict")
 
     # for this example, set stack rating explicitly
     stack_dict = {
-        "n_cells": 100,
-        "cell_area": 1000,
-        "temperature": 60,
-        "max_current": 2000,
-        "stack_rating_kW": 750,
         "dt": 1,
+        "cell_type": "PEM",
+        "max_current": 2000,
+        "temperature": 60,
+        "n_cells": 100,
+        "stack_rating_kW": 750,
+        "degradation": {
+            "PEM_params": {
+                "rate_steady": 1.41737929e-10,
+                "rate_fatigue": 3.33330244e-07,
+                "rate_onoff": 1.47821515e-04,
+            }
+        },
+        "cell_params": {
+            "cell_type": "PEM",
+            "PEM_params": {
+                "cell_area": 1000,
+                "turndown_ratio": 0.1,
+                "max_current_density": 2,
+            },
+        },
     }
 
     stack = Stack.from_dict(stack_dict)
 
     assert stack.n_cells == stack_dict["n_cells"]
-    assert stack.cell_area == stack_dict["cell_area"]
+    assert stack.cell.cell_area == stack_dict["cell_params"]["PEM_params"]["cell_area"]
     assert stack.temperature == stack_dict["temperature"]
     assert stack.max_current == stack_dict["max_current"]
 
@@ -85,7 +117,7 @@ def test_run(mocker):
 
     spy_update_deg = mocker.spy(Stack, "update_degradation")
     spy_calc_p = mocker.spy(Stack, "calc_stack_power")
-    spy_calc_mfr = mocker.spy(Cell, "calc_mass_flow_rate")
+    spy_calc_mfr = mocker.spy(PEMCell, "calc_mass_flow_rate")
     spy_update_dynamics = mocker.spy(Stack, "update_dynamics")
     spy_update_status = mocker.spy(Stack, "update_status")
 
@@ -138,14 +170,23 @@ def test_create_polarization(stack: Stack):
     fit_params = stack.create_polarization()
 
     # this is brittle, so for now use a lenient precision check
+    # expected = [
+    #    -2.28261081e-03,
+    #    -1.50848325e-02,
+    #    7.89259537e-03,
+    #    4.80671306e00,
+    #    9.74923247e-01,
+    #    1.36179580e01,
+    # ]
     expected = [
-        -2.28261081e-03,
-        -1.50848325e-02,
-        7.89259537e-03,
-        4.80671306e00,
-        9.74923247e-01,
-        1.36179580e01,
+        -1.99627103e-03,
+        -1.27808907e-02,
+        4.76371760e-03,
+        4.98846103e00,
+        7.96586249e-01,
+        1.11445867e01,
     ]
+
     assert_array_almost_equal(fit_params, expected, decimal=2)
 
 
@@ -287,7 +328,10 @@ def test_update_dynamics(stack: Stack):
     """
     Should update stack state and apply H2 MFR filter to simulate dynamic response.
     """
-    H2_mfr = stack.cell.calc_mass_flow_rate(stack.max_current) * stack.n_cells
+    H2_mfr = (
+        stack.cell.calc_mass_flow_rate(stack.temperature, stack.max_current)
+        * stack.n_cells
+    )
     new_state, filtered_H2_mfr = stack.update_dynamics(H2_mfr, stack.stack_state)
 
     # filtered state should be lower than
@@ -369,7 +413,10 @@ def test_calc_electrolysis_efficiency(stack: Stack):
     """
     Should calculate values of electrolysis efficiency for given DC Power input and MFR.
     """
-    H2_mfr = stack.cell.calc_mass_flow_rate(stack.max_current * 0.8) * stack.n_cells
+    H2_mfr = (
+        stack.cell.calc_mass_flow_rate(stack.temperature, stack.max_current * 0.8)
+        * stack.n_cells
+    )
     eta_values = stack.calc_electrolysis_efficiency(
         stack.stack_rating_kW, H2_mfr * 3600
     )
@@ -378,7 +425,10 @@ def test_calc_electrolysis_efficiency(stack: Stack):
 
     # efficiency should decrease as we approach max current due to overpotentials
     assert eta_values[0] > 80  # highest efficiency around 80% capacity
-    H2_mfr2 = stack.cell.calc_mass_flow_rate(stack.max_current) * stack.n_cells
+    H2_mfr2 = (
+        stack.cell.calc_mass_flow_rate(stack.temperature, stack.max_current)
+        * stack.n_cells
+    )
     eta_values2 = stack.calc_electrolysis_efficiency(
         stack.stack_rating_kW, H2_mfr2 * 3600
     )
@@ -387,11 +437,27 @@ def test_calc_electrolysis_efficiency(stack: Stack):
 
 def test_dt_behavior():
     stack_dict = {
-        "n_cells": 100,
-        "cell_area": 1000,
-        "temperature": 60,
-        "max_current": 2000,
         "dt": 1,
+        "cell_type": "PEM",
+        "max_current": 2000,
+        "temperature": 60,
+        "n_cells": 100,
+        # "stack_rating_kW": 750,
+        "degradation": {
+            "PEM_params": {
+                "rate_steady": 1.41737929e-10,
+                "rate_fatigue": 3.33330244e-07,
+                "rate_onoff": 1.47821515e-04,
+            }
+        },
+        "cell_params": {
+            "cell_type": "PEM",
+            "PEM_params": {
+                "cell_area": 1000,
+                "turndown_ratio": 0.1,
+                "max_current_density": 2,
+            },
+        },
     }
 
     stack1 = Stack.from_dict(stack_dict)

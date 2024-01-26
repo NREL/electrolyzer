@@ -8,8 +8,7 @@ import pandas as pd
 
 import electrolyzer.inputs.validation as val
 from electrolyzer import Supervisor
-
-from .optimization import calc_rated_system
+from electrolyzer.glue_code.optimization import calc_rated_system
 
 
 def _run_electrolyzer_full(modeling_options, power_signal):

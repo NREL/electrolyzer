@@ -15,12 +15,12 @@ def calc_rated_system(modeling_options: dict):
     """
     options = copy.deepcopy(modeling_options)
 
-    system_rating_kW = options["electrolyzer"]["control"]["system_rating_MW"] * 1e3
+    system_rating_kW = options["electrolyzer"]["supervisor"]["system_rating_MW"] * 1e3
     stack_rating_kW = options["electrolyzer"]["stack"]["stack_rating_kW"]
 
     # determine number of stacks (int) closest to stack rating (float)
     n_stacks = round(system_rating_kW / stack_rating_kW)
-    options["electrolyzer"]["control"]["n_stacks"] = n_stacks
+    options["electrolyzer"]["supervisor"]["n_stacks"] = n_stacks
 
     # determine new desired rating to adjust parameters for
     new_rating = system_rating_kW / n_stacks
@@ -67,6 +67,8 @@ def calc_rated_stack(modeling_options: dict):
     """
     options = modeling_options["electrolyzer"]["stack"]
     options["dt"] = modeling_options["electrolyzer"]["dt"]
+    options["cell_params"] = modeling_options["electrolyzer"]["cell_params"]
+    options["degradation"] = modeling_options["electrolyzer"]["degradation"]
     stack = Stack.from_dict(options)
 
     n_cells = stack.n_cells
@@ -74,7 +76,7 @@ def calc_rated_stack(modeling_options: dict):
     # start with an initial calculation of stack power to compare with desired
     stack_p = stack.calc_stack_power(stack.max_current)
     desired_rating = stack.stack_rating_kW
-    desired_curr_density = stack.max_current / stack.cell_area
+    desired_curr_density = stack.max_current / stack.cell.cell_area
 
     # nudge cell count up or down until it overshoots
     if stack_p > desired_rating:
@@ -97,7 +99,8 @@ def calc_rated_stack(modeling_options: dict):
     stack.max_current = res[1]
     stack_p = stack.calc_stack_power(stack.max_current)
 
-    modeling_options["electrolyzer"]["stack"]["cell_area"] = res[0]
+    # TODO alkaline cell characteristic area optimization
+    modeling_options["electrolyzer"]["cell_params"]["PEM_params"]["cell_area"] = res[0]
     modeling_options["electrolyzer"]["stack"]["max_current"] = res[1]
     modeling_options["electrolyzer"]["stack"]["n_cells"] = n_cells
     modeling_options["electrolyzer"]["stack"]["stack_rating_kW"] = stack_p

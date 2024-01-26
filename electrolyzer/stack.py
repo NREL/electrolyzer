@@ -1,4 +1,7 @@
 """This module defines a Hydrogen Electrolyzer Stack."""
+
+from typing import Union
+
 import numpy as np
 import scipy
 import pandas as pd
@@ -6,38 +9,49 @@ import rainflow
 from attrs import field, define
 from scipy.signal import tf2ss, cont2discrete
 
-from .cell import Cell, electrolyzer_model
-from .type_dec import NDArrayFloat, FromDictMixin, array_converter
+from electrolyzer.PEM_cell import PEMCell, PEM_electrolyzer_model
+from electrolyzer.type_dec import NDArrayFloat, FromDictMixin, array_converter
+from electrolyzer.alkaline_cell import AlkalineCell, ael_electrolyzer_model
 
 
 @define
 class Stack(FromDictMixin):
     # Stack parameters #
     ####################
-    cell_area: float
-    max_current: float
-    temperature: float
-    n_cells: int
-    dt: float
+    dt: float = field()
+    cell_type: str = field()
+    temperature: float = field()
+    n_cells: int = field()
 
-    min_power: float = None
-    stack_rating_kW: float = None
+    degradation: dict = field()
+    cell_params: dict = field()
+
+    stack_rating_kW: float = field(default=None)
+    include_degradation_penalty: bool = field(default=True)
+    max_current: float = field(default=1000)  # TODO this is a bad default, fix later
+
+    min_power: float = field(default=None)
+
+    turndown_ratio: float = field(init=False)
+    cell_area: float = field(init=False)
 
     # initialized in __attrs_post_init
-    cell: Cell = field(init=False)
+    cell: Union[PEMCell, AlkalineCell] = field(init=False)
     fit_params: NDArrayFloat = field(init=False)
     stack_rating: float = field(init=False)
+    electrolyzer_model = field(init=False)
 
     # Degradation state #
     #####################
+
+    rate_steady: float = field(init=False)  # conversion factor for steady degradation
+    rate_fatigue: float = field(init=False)  # conversion factor for fatigue degradation
+    rate_onoff: float = field(init=False)  # conversion factor for on off degradation
 
     # [s] amount of time this electrolyzer stack has been running
     uptime: float = field(init=False, default=0)
 
     cell_voltage: float = field(init=False, default=0)
-
-    # conversion factor from steady to degradation V
-    rate_steady: float = field(init=False, default=1.41737929e-10)
 
     # [V] degradation penalty from steady operation only
     d_s: float = field(init=False, default=0)
@@ -58,22 +72,14 @@ class Stack(FromDictMixin):
         init=False, default=[], converter=array_converter
     )
 
-    # conversion factor from rf_track to degradation V
-    rate_fatigue: float = field(init=False, default=3.33330244e-07)
-
     # [V] degradation from fluctuating power only
     d_f: float = field(init=False, default=0)
 
     # numer of times the stack has been turned off
     cycle_count: int = field(init=False, default=0)
 
-    # conversion from cycle_count to degradation V
-    rate_onoff: float = field(init=False, default=1.47821515e-04)
-
     # [V] degradation from on/off cycling only
     d_o: float = field(init=False, default=0)
-
-    include_degradation_penalty: bool = True
 
     # [V] running degradation voltage penalty
     V_degradation: float = field(init=False, default=0)
@@ -122,8 +128,43 @@ class Stack(FromDictMixin):
         # Stack parameters #
         ####################
 
-        # TODO: let's make this more seamless
-        self.cell = Cell.from_dict({"cell_area": self.cell_area})
+        if self.cell_type == "PEM":
+            # initialize electrolzyer cell model
+            self.cell = PEMCell.from_dict(self.cell_params["PEM_params"])
+
+            # set degradation rates
+            self.rate_steady = self.degradation["PEM_params"]["rate_steady"]
+            self.rate_fatigue = self.degradation["PEM_params"]["rate_fatigue"]
+            self.rate_onoff = self.degradation["PEM_params"]["rate_onoff"]
+
+            # electrolyzer_model for current calculation
+            self.electrolyzer_model = PEM_electrolyzer_model
+
+        elif self.cell_type == "alkaline":
+            # initialize electrolyzer cell model
+            self.cell = AlkalineCell.from_dict(self.cell_params["ALK_params"])
+
+            # set degradation rates
+            self.rate_steady = self.degradation["ALK_params"]["rate_steady"]
+            self.rate_fatigue = self.degradation["ALK_params"]["rate_fatigue"]
+            self.rate_onoff = self.degradation["ALK_params"]["rate_onoff"]
+
+            # electrolyzer_model for current calculation
+            self.electrolyzer_model = ael_electrolyzer_model
+
+        # [kW] nameplate power rating
+        self.stack_rating_kW = self.stack_rating_kW or self.calc_stack_power(
+            self.max_current
+        )
+
+        self.stack_rating = self.stack_rating_kW * 1e3  # [W] nameplate rating
+
+        # set minimum power
+        if self.cell_type == "PEM":
+            self.turndown_ratio = self.cell_params["PEM_params"]["turndown_ratio"]
+        elif self.cell_type == "alkaline":
+            self.turndown_ratio = self.cell_params["ALK_params"]["turndown_ratio"]
+        self.min_power = self.min_power or (self.turndown_ratio * self.stack_rating)
 
         self.fit_params = self.create_polarization()
 
@@ -150,15 +191,6 @@ class Stack(FromDictMixin):
             ]
         )
 
-        # [kW] nameplate power rating
-        self.stack_rating_kW = self.stack_rating_kW or self.calc_stack_power(
-            self.max_current
-        )
-
-        self.stack_rating = self.stack_rating_kW * 1e3  # [W] nameplate rating
-
-        # [W] cannot operate at less than 10% of rated power
-        self.min_power = self.min_power or (0.1 * self.stack_rating)
         # self.h2_pres_out = 31  # H2 outlet pressure (bar)
 
         self.DTSS = self.calc_state_space()
@@ -172,7 +204,7 @@ class Stack(FromDictMixin):
         """
         self.update_status()
 
-        I = electrolyzer_model((P_in / 1e3, self.temperature), *self.fit_params)
+        I = self.electrolyzer_model((P_in / 1e3, self.temperature), *self.fit_params)
         V = self.cell.calc_cell_voltage(I, self.temperature)
 
         if self.stack_on:
@@ -186,7 +218,7 @@ class Stack(FromDictMixin):
             self.update_temperature(I, V)
             self.update_degradation()
             power_left -= self.calc_stack_power(I, V) * 1e3
-            H2_mfr = self.cell.calc_mass_flow_rate(I) * self.n_cells
+            H2_mfr = self.cell.calc_mass_flow_rate(self.temperature, I) * self.n_cells
             self.stack_state, H2_mfr = self.update_dynamics(H2_mfr, self.stack_state)
 
             H2_mass_out = H2_mfr * self.dt
@@ -232,6 +264,7 @@ class Stack(FromDictMixin):
         pieces = []
         prev_temp = self.temperature
         for temp in np.arange(40, 60 + 5, 5):
+            # for temp in np.arange(self.temperature - 5, self.temperature + 10, 5):
             self.temperature = temp
             powers = self.calc_stack_power(currents)
             tmp = pd.DataFrame({"current_A": currents, "power_kW": powers})
@@ -245,7 +278,7 @@ class Stack(FromDictMixin):
 
         # use curve_fit routine
         fitobj, fitcov = scipy.optimize.curve_fit(
-            electrolyzer_model,
+            self.electrolyzer_model,
             (df.power_kW.values, df.temp_C.values),
             df.current_A.values,
             p0=paramsinitial,
@@ -259,7 +292,7 @@ class Stack(FromDictMixin):
         T [degC]: stack temperature
         return :: Idc [A]: stack current
         """
-        Idc = electrolyzer_model((Pdc, T), *self.fit_params)
+        Idc = self.electrolyzer_model((Pdc, T), *self.fit_params)
         return Idc
 
     def curtail_power(self, P_in):

@@ -7,5 +7,5 @@ electrolyzer:
         min_power: 50
         stack_rating_kW: 500
 
-    control:
+    controller:
         control_type: Bad

@@ -1,0 +1,87 @@
+general:
+    verbose: False # default
+
+electrolyzer:
+    dt: 1 # default
+
+    supervisor:
+        system_rating_MW: 1
+        n_stacks: 20
+
+    stack:
+        cell_type: alkaline
+        max_current: 90 # 0.3 [A/cm^2] * [300 cm^2]
+        temperature: 60 #[degC] - needed for cell calcs
+        n_cells: 24 # - needed for cell calcs
+        stack_rating_kW: 5 # [kW]
+
+    degradation:
+        ALK_params:
+            rate_steady: 5.092592592592592e-09
+            rate_fatigue: 1.2820512820512823e-05
+            rate_onoff: 3.0726072607260716e-04
+
+    cell_params:
+        cell_type: alkaline
+        ALK_params:
+            model: default_hri
+            pressure_operating: 1 #[bar] - needed as cell input
+            turndown_ratio: 0.25 # [fraction of rated]
+            max_current_density: 0.3 #[A/cm^2]
+            electrode:
+                A_electrode: 300 #[cm^2] electrode total area
+                e_a: 0.2 #[cm] anode thickness
+                e_c: 0.2 #[cm] cathode thickness
+                d_am: 0.125 #[cm] anode-membrane distance
+                d_cm: 0.125 #[cm] cathode-membrane distance
+                d_ac: 0.25 #[cm] anode-cathode distance
+            electrolyte:
+                w_koh: 30 # [wt. %] can range from [25-33]
+            membrane:
+                A_membrane: 300 #[cm^2] #membrane surface area
+                e_m:  0.05 #[cm] #membrane thickness
+
+
+# in original modeling schema format
+
+    # model: default_hri
+    # stack:
+        #cell_area:
+        # max_current_dens: 0.3 #[A/cm^2]
+        # temperature:  60 #[degC] - needed for cell calcs
+        # pressure_operating:  1 #[bar] - needed as cell input
+        # n_cells: 24 # - needed for cell calcs
+        # stack_rating_kW:  5 #[kW]
+        # min_power_percent: 0.25 #[% of rated] - opt
+    # electrode:
+        # anode_material: Nickle
+        # cathode_material: Nickle
+        # A_electrode: 300 #[cm^2] electrode total area
+        # e_a: 0.2 #[cm] anode thickness
+        # e_c: 0.2 #[cm] cathode thickness
+        # d_am: 0.125 #[cm] anode-membrane distance
+        # d_cm: 0.125 #[cm] cathode-membrane distance
+        # d_ac: 0.25 #[cm] anode-cathode distance
+        #electrode_effective_area: #cm^2 - opt?
+    # electrolyte:
+        # solution: KOH
+        # w_koh: 30 # [wt. %] can range from [25-33]
+    # membrane:
+        # material: Zirfon
+        # A_membrane: 300 #[cm^2] #membrane surface area
+        # e_m:  0.05 #[cm] #membrane thickness
+        # density: 2.02 #g/cm^3
+        # porosity: 56 #[%]
+        # tortuosity: 2
+        # min_bubble_point_pressure: 2.18 #bar
+        # max_bubble_point_pressure: 3.48 #bar
+
+
+#[Hammoudi,Henao, 2012]
+#[Henou, Agbossou, 2014]
+
+#https://www.sciencedirect.com/science/article/pii/0360319994000739 trying to find S_eff
+#^may also have degradation info
+#https://www.scopus.com/record/display.uri?eid=2-s2.0-0020587461&origin=inward
+#^ actual reference
+#"ncremental ohmic resistance caused by bubbles adhering to the electrode by Vogt. H"

@@ -1,12 +1,13 @@
 """
 This module defines the Hydrogen Electrolyzer control code.
 """
+
 import numpy as np
 import numpy.typing as npt
 from attrs import field, define
 
-from .stack import Stack
-from .type_dec import NDArrayInt, NDArrayFloat, FromDictMixin
+from electrolyzer.stack import Stack
+from electrolyzer.type_dec import NDArrayInt, NDArrayFloat, FromDictMixin
 
 
 @define
@@ -15,14 +16,17 @@ class Supervisor(FromDictMixin):
     ####################
 
     dt: float
+    supervisor: dict
+    controller: dict
     stack: dict
+    degradation: dict
+    cell_params: dict
     costs: dict  # TODO: should this be connected here?
-    control: dict
     initialize: bool = False
     initial_power_kW: float = 0.0
 
     name: str = field(default="electrolyzer_001")
-    description: str = field(default="A PEM electrolyzer model")
+    description: str = field(default="An electrolyzer model")
 
     control_type: str = field(init=False, default="BaselineDeg")
     n_stacks: int = field(init=False, default=1)
@@ -98,8 +102,8 @@ class Supervisor(FromDictMixin):
             'EHOV': eager on, hesitant off, rotation order, variable power dist
             'EHOE': eager on, hesitant off, rotation order, even power dist
         """
-        self.control_type = self.control["control_type"]
-        self.n_stacks = self.control["n_stacks"]
+        self.control_type = self.controller["control_type"]
+        self.n_stacks = self.supervisor["n_stacks"]
 
         if "sequential" in self.control_type.lower():
             # TODO: current filter width hardcoded at 5 min, make an input
@@ -109,11 +113,11 @@ class Supervisor(FromDictMixin):
             self.past_power = [0]
 
         if "Decision" in self.control_type:
-            self.eager_on = self.control["policy"]["eager_on"]
-            self.eager_off = self.control["policy"]["eager_off"]
-            self.sequential = self.control["policy"]["sequential"]
-            self.even_dist = self.control["policy"]["even_dist"]
-            self.baseline = self.control["policy"]["baseline"]
+            self.eager_on = self.controller["policy"]["eager_on"]
+            self.eager_off = self.controller["policy"]["eager_off"]
+            self.sequential = self.controller["policy"]["sequential"]
+            self.even_dist = self.controller["policy"]["even_dist"]
+            self.baseline = self.controller["policy"]["baseline"]
 
         self.active_constant = np.zeros(self.n_stacks)
         self.active = np.zeros(self.n_stacks)
@@ -132,14 +136,8 @@ class Supervisor(FromDictMixin):
             self.initialize_plant_stacks()
 
         # Establish system rating
-        if "system_rating_MW" in self.control:
-            self.system_rating_MW = self.control["system_rating_MW"]
-        else:
-            self.n_stacks * self.stack_rating_kW / 1e3
-
-        # Establish system rating
-        if "system_rating_MW" in self.control:
-            self.system_rating_MW = self.control["system_rating_MW"]
+        if "system_rating_MW" in self.supervisor:
+            self.system_rating_MW = self.supervisor["system_rating_MW"]
         else:
             self.n_stacks * self.stack_rating_kW / 1e3
 
@@ -147,6 +145,9 @@ class Supervisor(FromDictMixin):
         # initialize electrolyzer objects
         stacks = np.empty(self.n_stacks, Stack)
         self.stack["dt"] = self.dt
+        self.stack["degradation"] = self.degradation
+        self.stack["cell_params"] = self.cell_params
+
         for i in range(self.n_stacks):
             stacks[i] = Stack.from_dict(self.stack)
             # TODO: replace with proper logging
@@ -214,6 +215,8 @@ class Supervisor(FromDictMixin):
         elif self.control_type == "DecisionControl":
             stack_power = self.decision_ctrl(power_in)
             curtailed_wind = 0
+        else:
+            print("Supervisor control_type not recognized")
 
         return stack_power, curtailed_wind
 
@@ -639,13 +642,13 @@ class Supervisor(FromDictMixin):
 
     def check_turn_on_off(self, P_avail):
         max_num_active = min(
-            [self.n_stacks, int(np.floor(P_avail / 1e3 / self.stack_min_power))]
+            [self.n_stacks, int(np.floor(P_avail / self.stack_min_power))]
         )  # maximum possible number of electrolzyers running
         min_num_active = min(
             [
                 self.n_stacks,
                 int(
-                    (P_avail / 1e3 > self.stack_min_power)
+                    (P_avail > self.stack_min_power)
                     * np.ceil(P_avail / self.stack_rating)
                 ),
             ]
@@ -687,10 +690,10 @@ class Supervisor(FromDictMixin):
             # Option 4: eager on, eager off has very frequent switching - not useful
 
         if self.baseline:
-            if P_avail / 1e3 > self.n_stacks * self.stack_min_power:
+            if P_avail > self.n_stacks * self.stack_min_power:
                 num_on = max([0, self.n_stacks - n_active])
                 num_off = 0
-            elif P_avail / 1e3 < self.n_stacks * self.stack_min_power:
+            elif P_avail < self.n_stacks * self.stack_min_power:
                 num_on = 0
                 num_off = min([self.n_stacks, n_active])
 
@@ -751,11 +754,13 @@ class Supervisor(FromDictMixin):
 
         for i, a in enumerate(self.active):
             if a:
-                P_i[i] += self.stack_min_power * 1e3
-                P_avail -= self.stack_min_power * 1e3
+                P_i[i] += self.stack_min_power
+                P_avail -= self.stack_min_power
 
         if (self.even_dist or self.baseline) & (sum(self.active) > 0):
-            P_indv = P_avail / sum(self.active)  # check this if power gets too large
+            P_indv = np.min(
+                [P_avail / sum(self.active), self.stack_rating - self.stack_min_power]
+            )
             for i, a in enumerate(self.active):
                 if a:
                     P_i[i] += P_indv
@@ -769,9 +774,9 @@ class Supervisor(FromDictMixin):
 
             for i, a in enumerate(self.active):
                 if a:
-                    if P_avail >= (self.stack_rating - self.stack_min_power * 1e3):
-                        P_i[i] += self.stack_rating - self.stack_min_power * 1e3
-                        P_avail -= self.stack_rating - self.stack_min_power * 1e3
+                    if P_avail >= (self.stack_rating - self.stack_min_power):
+                        P_i[i] += self.stack_rating - self.stack_min_power
+                        P_avail -= self.stack_rating - self.stack_min_power
                     elif P_avail >= 0:
                         P_i[i] += P_avail
                         P_avail -= P_avail

@@ -1,32 +1,48 @@
 """
 This example runs the Electrolyzer on its own and generates polarization curves.
 """
+
 import numpy as np
 import matplotlib.pyplot as plt
 
-from electrolyzer import Stack, electrolyzer_model
+from electrolyzer import Stack
+from electrolyzer.PEM_cell import PEM_electrolyzer_model as electrolyzer_model
 
-
-n_cells = 100  # number of cells in stack
-cell_area = 1000  # cell area, cm^2
-temperature = 60  # temperature
-max_current = 2000
 
 stack_dict = {
-    "n_cells": n_cells,
-    "cell_area": cell_area,
-    "temperature": temperature,
-    "max_current": max_current,
+    "cell_type": "PEM",
+    "max_current": 2000,
+    "temperature": 60,
+    "n_cells": 100,
+    "cell_params": {
+        "cell_type": "PEM",
+        "PEM_params": {
+            "cell_area": 1000,
+            "turndown_ratio": 0.1,
+            "max_current_density": 2,
+        },
+    },
+    "degradation": {
+        "PEM_params": {
+            "rate_steady": 1.41737929e-10,
+            "rate_fatigue": 3.33330244e-07,
+            "rate_onoff": 1.47821515e-04,
+        }
+    },
+    "dt": 1,
 }
 
 elec = Stack.from_dict(stack_dict)
 
 cur = np.linspace(0, 2500, 100)
 p_fit = elec.calc_stack_power(
-    electrolyzer_model((elec.calc_stack_power(cur), temperature), *elec.fit_params)
+    electrolyzer_model(
+        (elec.calc_stack_power(cur), stack_dict["temperature"]), *elec.fit_params
+    )
 )
+
 p_actual = elec.calc_stack_power(cur)
-voltage = elec.cell.calc_cell_voltage(cur, temperature)
+voltage = elec.cell.calc_cell_voltage(cur, stack_dict["temperature"])
 fit_error = p_actual - p_fit
 
 fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)

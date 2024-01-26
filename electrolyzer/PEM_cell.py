@@ -1,6 +1,7 @@
 """
 This module defines a Hydrogen Electrolyzer Cell
 """
+
 # TODOs
 # * refine calcCellVoltage(); compare with alkaline models
 # * refine convertACtoDC(); compare with empirical ESIF model
@@ -11,10 +12,10 @@ import numpy as np
 from attrs import define
 from scipy.constants import R, physical_constants, convert_temperature
 
-from .type_dec import FromDictMixin
+from electrolyzer.type_dec import FromDictMixin
 
 
-def electrolyzer_model(X, a, b, c, d, e, f):
+def PEM_electrolyzer_model(X, a, b, c, d, e, f):
     """
     Given a power input (kW), temperature (C), and set of coefficients, returns
     current (A).  Coefficients can be determined using non-linear least squares
@@ -30,14 +31,17 @@ def electrolyzer_model(X, a, b, c, d, e, f):
 #############
 F, _, _ = physical_constants["Faraday constant"]  # Faraday's constant [C/mol]
 P_ATMO, _, _ = physical_constants["standard atmosphere"]  # Pa
+P_STD, _, _ = physical_constants["standard-state pressure"]  # Pa (1bar)
 
 
 @define
-class Cell(FromDictMixin):
+class PEMCell(FromDictMixin):
     # Chemical Params #
     ###################
 
     cell_area: float
+    turndown_ratio: float
+    max_current_density: float
 
     # If we rework this class to be even more generic, we can have these be specified
     # as configuration params
@@ -61,10 +65,11 @@ class Cell(FromDictMixin):
         T_K = convert_temperature([temperature], "C", "K")[0]
         E_rev_0 = self.calc_reversible_voltage()
         p_anode = P_ATMO  # (Pa) assumed atmo
-        p_cathode = P_ATMO
+        p_cathode = 30 * P_STD  # (Pa) 30 bars
 
         # noqa: E501
         # Arden Buck equation T=C, https://www.omnicalculator.com/chemistry/vapour-pressure-of-water#vapor-pressure-formulas # noqa
+        # Reasonable at temperatures between 0-100C
         p_h2O_sat = (
             0.61121
             * np.exp(
@@ -73,12 +78,13 @@ class Cell(FromDictMixin):
             )
         ) * 1e3  # (Pa)
 
-        # General Nernst equation
+        # Dalton's Law to find partial pressure of reactants at each electrode.
+        p_h2 = p_cathode - p_h2O_sat
+        p_o2 = p_anode - p_h2O_sat
+
+        # General Nernst equation, 10.1016/j.ijhydene.2017.03.046
         E_cell = E_rev_0 + ((R * T_K) / (self.n * F)) * (
-            np.log(
-                ((p_anode - p_h2O_sat) / P_ATMO)
-                * np.sqrt((p_cathode - p_h2O_sat) / P_ATMO)
-            )
+            np.log((p_h2 / P_ATMO) * np.sqrt(p_o2 / P_ATMO))
         )
 
         return E_cell
@@ -138,7 +144,7 @@ class Cell(FromDictMixin):
         # pulled from https://www.sciencedirect.com/science/article/pii/S0360319917309278?via%3Dihub # noqa
         # TODO: pulled from empirical data, is there a better eq?
         lambda_nafion = ((-2.89556 + (0.016 * T_K)) + 1.625) / 0.1875
-        t_nafion = 0.03  # (cm) TODO: confirm actual thickness?
+        t_nafion = 0.02  # (cm) confirmed that membrane thickness is <0.02.
 
         # TODO: confirm with Nel, is there a better eq?
         sigma_nafion = ((0.005139 * lambda_nafion) - 0.00326) * np.exp(
@@ -212,9 +218,10 @@ class Cell(FromDictMixin):
     # ------------------------------------------------------------
     # Post H2 production
     # ------------------------------------------------------------
-    def calc_faradaic_efficiency(self, I):
+    def calc_faradaic_efficiency(self, T_C, I):
         """
         I [A]: current
+        T_C [C]: cell temperature (currently unused)
         return :: eta_F [-]: Faraday's efficiency
         Reference: https://res.mdpi.com/d_attachment/energies/energies-13-04792/article_deploy/energies-13-04792-v2.pdf
         """  # noqa
@@ -228,13 +235,14 @@ class Cell(FromDictMixin):
 
         return eta_F
 
-    def calc_mass_flow_rate(self, Idc, dryer_loss=6.5):
+    def calc_mass_flow_rate(self, T_C, Idc, dryer_loss=6.5):
         """
         Idc [A]: stack current
         dryer_loss [%]: loss of drying H2
+        T_C [C]: cell temperature (currently unused)
         return :: mfr [kg/s]: mass flow rate
         """
-        eta_F = self.calc_faradaic_efficiency(Idc)
+        eta_F = self.calc_faradaic_efficiency(T_C, Idc)
         mfr = eta_F * Idc * self.M / (self.n * F) * (1 - dryer_loss / 100.0)  # [g/s]
         # mfr = mfr / 1000. * 3600. # [kg/h]
         mfr = mfr / 1e3  # [kg/s]

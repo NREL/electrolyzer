@@ -4,16 +4,25 @@ general:
 electrolyzer:
     dt: 1 # default
 
+    supervisor:
+        system_rating_MW: 3.5 # required for optimize=True run
+        n_stacks: 7
+
+    controller:
+        control_type: BaselineDeg # default
+
     stack:
-        cell_area: 1000.0
+
         max_current: 2000
         temperature: 60
         n_cells: 100
         stack_rating_kW: 500
-    control:
-        n_stacks: 7
-        system_rating_MW: 3.5 # required for optimize=True run
-        control_type: BaselineDeg # default
+
+    cell_params:
+        cell_type: PEM
+        PEM_params:
+            cell_area: 1000
+
     costs:
         plant_params:
             plant_life: 25 #years (30 from [9])
@@ -37,19 +46,3 @@ electrolyzer:
         finances:
             discount_rate: 0.04 #(page 3 below Eqn (4) of [7]) (pg 9 near Eqn (23) of [9] has 0.05)
             install_factor: 0.33 # [%] Install Factor (Table B.2 of [9]) (Section 2.1 of [5])
-
-#[1]: Joule TEA 2021: https://ars.els-cdn.com/content/image/1-s2.0-S2542435121003068-mmc1.pdf
-#[2]: PNNL 2020: https://www.pnnl.gov/sites/default/files/media/file/Hydrogen_Methodology.pdf 
-#[3]: IRENA 2020: https://www.irena.org/publications/2020/Dec/Green-hydrogen-cost-reduction
-#[4]: ICCT 2020: https://theicct.org/wp-content/uploads/2021/06/final_icct2020_assessment_of-_hydrogen_production_costs-v2.pdf
-#[5]: DRO 2021: extra info: https://www.mdpi.com/2673-4141/2/3/15 paper only: https://dro.dur.ac.uk/33454/1/33454.pdf
-#[6]: NREL 2019: https://www.nrel.gov/docs/fy19osti/73481.pdf
-#[7]: LCOH with PV: https://onlinelibrary.wiley.com/doi/full/10.1002/solr.202100482
-#[8]: Hydrogen Council 2020:
-# https://hydrogencouncil.com/wp-content/uploads/2020/01/Path-to-Hydrogen-Competitiveness_Full-Study-1.pdf
-# [9] DTU 2021: https://www.sciencedirect.com/science/article/pii/S2667095X21000052
-#CapEx Irena: Fig 18 pg 52 PEM CapEx breakdown
-#  IRENA has 400 $/kW for 2020 1MW electrolyzer (PEM)
-        # [$/kW] for 2MW PEM from DRO 2021.
-# IRENA has in range 300-1000 $/kW for 1MW electrolyzer (BOP)
-        # [$/kW] for 200 kW electrolyzer BOP breakdown cost from DRO 2021.

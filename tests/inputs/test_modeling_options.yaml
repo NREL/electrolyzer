@@ -6,14 +6,22 @@ electrolyzer:
     description: electrolyzer model
     dt: 1 # default
 
+    supervisor:
+        n_stacks: 7
+
+    controller:
+        control_type: DecisionControl
+
     stack:
-        cell_area: 1000.0
+        cell_type: PEM
         max_current: 2000
         temperature: 60
         n_cells: 100
-        min_power: 50
         stack_rating_kW: 500
         include_degradation_penalty: True
-    control:
-        n_stacks: 7
-        control_type: BaselineDeg # default
+
+    cell_params:
+        cell_type: PEM
+        PEM_params:
+            cell_area: 1000.0
+            turndown_ratio: 0.1

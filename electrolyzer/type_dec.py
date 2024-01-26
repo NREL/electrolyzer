@@ -1,6 +1,7 @@
 """
 This module provides utilities for serializing/deserializing classes using `attrs`.
 """
+
 from typing import Any, Tuple, Union, Callable, Iterable
 
 import attrs

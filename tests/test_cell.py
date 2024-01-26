@@ -1,18 +1,23 @@
 """This module provides unit tests for `Cell`."""
+
 import pytest
 from numpy.testing import assert_almost_equal
 
-from electrolyzer import Cell
+from electrolyzer import PEMCell as Cell
 
 
 @pytest.fixture
 def cell():
-    return Cell.from_dict({"cell_area": 1000})
+    return Cell.from_dict(
+        {"cell_area": 1000, "turndown_ratio": 0.1, "max_current_density": 2}
+    )
 
 
 def test_init():
     """`Cell` should initialize properly from a Dictionary."""
-    cell = Cell.from_dict({"cell_area": 1000})
+    cell = Cell.from_dict(
+        {"cell_area": 1000, "turndown_ratio": 0.1, "max_current_density": 2}
+    )
 
     assert cell.cell_area == 1000
     assert cell.n == 2
@@ -34,13 +39,13 @@ def test_calc_open_circuit_voltage(cell: Cell):
     T = 60  # C
     E_rev = cell.calc_reversible_voltage()
 
-    # should be less than reversible cell voltage
+    # should be greater than reversible cell voltage
     E_cell = cell.calc_open_circuit_voltage(T)
-    assert E_cell < E_rev
+    assert E_cell > E_rev
 
-    # should approach reversible cell voltage with increasing temp
-    E_cell = cell.calc_open_circuit_voltage(1e5)
-    assert_almost_equal(E_cell, E_rev, decimal=3)
+    # should approach E_rev at near 100C (valid temperature range)
+    E_cell_25 = cell.calc_open_circuit_voltage(99.9725)
+    assert_almost_equal(E_cell_25, E_rev, decimal=3)
 
 
 def test_calc_activation_overpotential(cell: Cell):
@@ -139,16 +144,16 @@ def test_calc_faradaic_efficiency(cell: Cell):
     I = 500
 
     # should increase with current
-    eta = cell.calc_faradaic_efficiency(I)
+    eta = cell.calc_faradaic_efficiency(60, I)
 
     I2 = 2000
-    eta2 = cell.calc_faradaic_efficiency(I2)
+    eta2 = cell.calc_faradaic_efficiency(60, I2)
 
     assert eta2 > eta
 
     # should approach 1 as current increases
     I3 = 5000
-    eta3 = cell.calc_faradaic_efficiency(I3)
+    eta3 = cell.calc_faradaic_efficiency(60, I3)
 
     assert_almost_equal(eta3, 0.996, decimal=3)
 
@@ -157,10 +162,10 @@ def test_calc_mass_flow_rate(cell: Cell):
     """Should calculate the mass flow rate of H2."""
     I = 1000
 
-    mfr = cell.calc_mass_flow_rate(I)
+    mfr = cell.calc_mass_flow_rate(60, I)
 
     # should increase with current
     I2 = 2000
-    mfr2 = cell.calc_mass_flow_rate(I2)
+    mfr2 = cell.calc_mass_flow_rate(60, I2)
 
     assert mfr2 > mfr

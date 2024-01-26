@@ -4,12 +4,26 @@ general:
 electrolyzer:
     dt: 1 # default
 
+    supervisor:
+        system_rating_MW: 2.0
+
+    controller:
+        control_type: BaselineDeg
+
     stack:
-        cell_area: 1000.0
+        cell_type: PEM
         max_current: 2000
         temperature: 60
         n_cells: 100
         stack_rating_kW: 500
-    control:
-        system_rating_MW: 2.0
-        control_type: BaselineDeg
+
+
+    # stack:
+    #     cell_area: 1000.0
+    #     max_current: 2000
+    #     temperature: 60
+    #     n_cells: 100
+    #     stack_rating_kW: 500
+    # control:
+    #     system_rating_MW: 2.0
+    #     control_type: BaselineDeg
