@@ -54,12 +54,6 @@ class PEMCell(FromDictMixin):
     lhv: float = 33.33  # lower heating value of H2 [kWh/kg]
     hhv: float = 39.41  # higher heating value of H2 [kWh/kg]
 
-    # def __attrs_post_init__(self) -> None:
-    #     # Cell area #
-    #     #############
-
-    #     self.cell_area = self.cell_params['cell_area']
-
     def calc_reversible_voltage(self):
         """
         Calculates reversible cell potential at standard state.
