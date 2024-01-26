@@ -5,8 +5,8 @@ import numpy as np
 import numpy.typing as npt
 from attrs import field, define
 
-from .stack import Stack
-from .type_dec import NDArrayInt, NDArrayFloat, FromDictMixin
+from electrolyzer.stack import Stack
+from electrolyzer.type_dec import NDArrayInt, NDArrayFloat, FromDictMixin
 
 
 @define

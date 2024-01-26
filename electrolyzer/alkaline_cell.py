@@ -13,7 +13,7 @@ import numpy as np
 from attrs import field, define
 from scipy.constants import R, physical_constants, convert_temperature
 
-from .type_dec import FromDictMixin
+from electrolyzer.type_dec import FromDictMixin
 
 
 warnings.filterwarnings("ignore")
