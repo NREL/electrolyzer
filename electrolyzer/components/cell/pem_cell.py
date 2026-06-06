@@ -15,8 +15,10 @@ F, _, _ = physical_constants["Faraday constant"]  # Faraday's constant [C/mol]
 class PEMCellConfig(CellBaseConfig):
     f1: float = field(default=250, validator=validators.ge(0))
     f2: float = field(default=0.996, validator=range_val(0.5, 1.0))
-    i_0a: float = field(default=2.0e-7, validator=validators.optional(range_val(0.0, 1.0)))
-    i_0c: float = field(default=2.0e-3, validator=validators.optional(range_val(0.0, 1.0)))
+    # i_0a: float = field(default=2.0e-7, validator=validators.optional(range_val(0.0, 1.0)))
+    # i_0c: float = field(default=2.0e-3, validator=validators.optional(range_val(0.0, 1.0)))
+    i_0a: float = field(default=None, validator=validators.optional(range_val(0.0, 1.0)))
+    i_0c: float = field(default=None, validator=validators.optional(range_val(0.0, 1.0)))
     alpha_a: float = field(default=2.0, validator=range_val(0.25, 4.0))
     alpha_c: float = field(default=0.5, validator=range_val(0.25, 4.0))
 
@@ -40,13 +42,6 @@ class PEMCellConfig(CellBaseConfig):
     )
 
     def __attrs_post_init__(self):
-        provided_per_electrode_info = all(
-            getattr(self, param, None) is not None for param in ["i_0a", "i_0c"]
-        )
-        provided_combined_info = all(
-            getattr(self, param, None) is not None for param in ["b_combined", "i0_combined"]
-        )
-
         extra_inputs_msg = (
             "Extraneous inputs ({extraneous_attrs_msg}) for kinetics_method {kinetics_method}. "
         )
@@ -55,55 +50,53 @@ class PEMCellConfig(CellBaseConfig):
         )
 
         if self.kinetics_method == "per_electrode":
-            if not provided_per_electrode_info or provided_combined_info:
-                # check if theres missing info or extraneous info
-                required_attributes = ["i_0a", "i_0c"]
-                extreanous_attributes = ["b_combined", "i0_combined"]
-                extraneous_attrs_msg = ", ".join(
-                    f"`{k}`" for k in extreanous_attributes if getattr(self, k, None) is not None
+            # check if theres missing info or extraneous info
+            required_attributes = ["i_0a", "i_0c"]
+            extreanous_attributes = ["b_combined", "i0_combined"]
+            extraneous_attrs_msg = ", ".join(
+                f"`{k}`" for k in extreanous_attributes if getattr(self, k, None) is not None
+            )
+            required_attrs_msg = ", ".join(
+                f"`{k}`" for k in required_attributes if getattr(self, k, None) is None
+            )
+            txt = ""
+            if len(extraneous_attrs_msg) > 0:
+                txt += extra_inputs_msg.format(
+                    extraneous_attrs_msg=extraneous_attrs_msg,
+                    kinetics_method=self.kinetics_method,
                 )
-                required_attrs_msg = ", ".join(
-                    f"`{k}`" for k in required_attributes if getattr(self, k, None) is None
-                )
-                txt = ""
-                if len(extraneous_attrs_msg) > 0:
-                    txt += extra_inputs_msg.format(
-                        extraneous_attrs_msg=extraneous_attrs_msg,
-                        kinetics_method=self.kinetics_method,
-                    )
 
-                if len(required_attrs_msg) > 0:
-                    txt += missing_inputs_msg.format(
-                        required_attrs_msg=required_attrs_msg, kinetics_method=self.kinetics_method
-                    )
-                if len(txt) > 0:
-                    raise AttributeError(txt)
+            if len(required_attrs_msg) > 0:
+                txt += missing_inputs_msg.format(
+                    required_attrs_msg=required_attrs_msg, kinetics_method=self.kinetics_method
+                )
+            if len(txt) > 0:
+                raise AttributeError(txt)
 
         if self.kinetics_method == "combined":
-            if not provided_combined_info or provided_per_electrode_info:
-                # check if theres missing info or extraneous info
-                required_attributes = ["b_combined", "i0_combined"]
-                extreanous_attributes = ["i_0a", "i_0c"]
-                extraneous_attrs_msg = ", ".join(
-                    f"`{k}`" for k in extreanous_attributes if getattr(self, k, None) is not None
+            # check if theres missing info or extraneous info
+            required_attributes = ["b_combined", "i0_combined"]
+            extreanous_attributes = ["i_0a", "i_0c"]
+            extraneous_attrs_msg = ", ".join(
+                f"`{k}`" for k in extreanous_attributes if getattr(self, k, None) is not None
+            )
+            required_attrs_msg = ", ".join(
+                f"`{k}`" for k in required_attributes if getattr(self, k, None) is None
+            )
+            txt = ""
+            if len(extraneous_attrs_msg) > 0:
+                txt += extra_inputs_msg.format(
+                    extraneous_attrs_msg=extraneous_attrs_msg,
+                    kinetics_method=self.kinetics_method,
                 )
-                required_attrs_msg = ", ".join(
-                    f"`{k}`" for k in required_attributes if getattr(self, k, None) is None
+
+            if len(required_attrs_msg) > 0:
+                txt += missing_inputs_msg.format(
+                    required_attrs_msg=required_attrs_msg, kinetics_method=self.kinetics_method
                 )
-                txt = ""
-                if len(extraneous_attrs_msg) > 0:
-                    txt += extra_inputs_msg.format(
-                        extraneous_attrs_msg=extraneous_attrs_msg,
-                        kinetics_method=self.kinetics_method,
-                    )
 
-                if len(required_attrs_msg) > 0:
-                    txt += missing_inputs_msg.format(
-                        required_attrs_msg=required_attrs_msg, kinetics_method=self.kinetics_method
-                    )
-
-                if len(txt) > 0:
-                    raise AttributeError(txt)
+            if len(txt) > 0:
+                raise AttributeError(txt)
 
 
 class PEMCell(CellBaseClass):
