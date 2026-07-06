@@ -165,8 +165,8 @@ class PEMCell(CellBaseClass):
         ba = R * temp_K / (alpha_a * F)
         bc = R * temp_K / (alpha_c * F)
 
-        anode_ratio = np.clip(J_cell / i_0a, a_min=1e-30)
-        cathode_ratio = np.clip(J_cell / i_0c, a_min=1e-30)
+        anode_ratio = np.maximum(J_cell / i_0a, 1e-30)
+        cathode_ratio = np.maximum(J_cell / i_0c, 1e-30)
 
         if self.config.activation_method == "arcsinh":
             V_acta = ba * np.arcsinh(anode_ratio)
@@ -180,7 +180,7 @@ class PEMCell(CellBaseClass):
         return V_acta + V_actc
 
     def combined_kinetics_activation_overpotential(self, J_cell, b_combined, i_0combined):
-        ratio = np.clip(J_cell / i_0combined, a_min=1e-30)
+        ratio = np.maximum(J_cell / i_0combined, 1e-30)
         if self.config.activation_method == "ln":
             V_act = b_combined * np.log(ratio)
         if self.config.activation_method == "log10":
@@ -289,5 +289,20 @@ class PEMCell(CellBaseClass):
         power_W_per_sec = self.power_consumption_rate(inputs)
         return power_W_per_sec / np.max([1e-30, h2_grams_per_sec])
 
-    def compute(self, inputs, outputs, discrete_inputs, discrete_outputs):
-        self.cell_voltage(inputs)
+    def compute(self, inputs, outputs):
+        V_cell = self.cell_voltage(inputs)
+        J_cell = self.get_current_density(inputs)
+        outputs["cell_voltage"] = V_cell
+        outputs["current_density_out"] = J_cell
+
+        outputs["hydrogen_produced"] = self.h2_production(inputs)
+        outputs["hydrogen_production_rate"] = self.h2_production_rate(inputs)
+        outputs["oxygen_produced"] = self.o2_production(inputs)
+        outputs["oxygen_production_rate"] = self.o2_production_rate(inputs)
+        # outputs["water_consumed"]
+
+        # outputs["rated_cell_voltage"]
+        # outputs["rated_conversion_efficiency"]
+        # outputs["rated_hydrogen_production"]
+        # outputs["rated_oxygen_production"]
+        # outputs["rated_cell_power"]
