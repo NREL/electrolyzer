@@ -101,7 +101,7 @@ class PEMCellConfig(CellBaseConfig):
 
 class PEMCell(CellBaseClass):
     def setup(self):
-        self.n = 2  # number of electrons transferred in reaction
+        # self.n = 2  # number of electrons transferred in reaction
 
         self.config = PEMCellConfig.from_dict(self.options["tech_config"]["cell_parameters"])
 
@@ -128,7 +128,7 @@ class PEMCell(CellBaseClass):
         return J_cell * A_cell
 
     def calc_Urev0(self, temperature_celsius):
-        E_cell0 = gibbs / (self.n * F)  # 1.229  # [V]
+        E_cell0 = gibbs / (2 * F)  # 1.229  # [V]
 
         # Reversible potential at 25degC - Nerst Equation
         if self.config.Urev0_calc_method == "normal":
@@ -153,9 +153,7 @@ class PEMCell(CellBaseClass):
         # Nerst Equation
         Urev0 = self.calc_Urev0(temperature_celsius)
 
-        E_cell = Urev0 + ((R * temp_k) / (self.n * F)) * (
-            np.log((p_H2 * np.sqrt(p_O2)) / p_H2O_sat)
-        )
+        E_cell = Urev0 + ((R * temp_k) / (2 * F)) * (np.log((p_H2 * np.sqrt(p_O2)) / p_H2O_sat))
 
         return E_cell
 
@@ -290,3 +288,6 @@ class PEMCell(CellBaseClass):
         h2_grams_per_sec = self.h2_production_rate(inputs)
         power_W_per_sec = self.power_consumption_rate(inputs)
         return power_W_per_sec / np.max([1e-30, h2_grams_per_sec])
+
+    def compute(self, inputs, outputs, discrete_inputs, discrete_outputs):
+        self.cell_voltage(inputs)
