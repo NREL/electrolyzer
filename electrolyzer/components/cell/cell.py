@@ -27,11 +27,11 @@ class CellBaseClass(om.ExplicitComponent):
         self.options.declare("tech_config", types=dict)
 
     def setup(self):
-        self.n_timesteps = self.options["plant_config"]["simulation"]["n_timesteps"]
+        # self.n_timesteps = self.options["plant_config"]["simulation"]["n_timesteps"]
         self.dt = self.options["plant_config"]["simulation"]["dt"]
 
         # design variables
-        self.add_input("cell_active_area", val=self.config.A_cell, units="A/(cm**2)")
+        self.add_input("A_cell", val=self.config.A_cell, units="A/(cm**2)")
         self.add_input("membrane_thickness", val=self.config.membrane_thickness, units="cm")
         self.add_input("operating_temperature", val=self.config.temperature, units="degC")
         self.add_input("anode_pressure", self.config.P_anode, units="bar")
@@ -40,31 +40,28 @@ class CellBaseClass(om.ExplicitComponent):
 
         # input profiles
         # TODO: make either current density or current
-        self.add_input("current_in", val=0.0, shape_by_conn=True, units="A")  # OR current density?
-        # self.add_input("current_density_in", val=0.0, shape_by_conn=True, units="A/(cm**2)")
+        self.add_input("I_in", val=0.0, shape_by_conn=True, units="A")  # OR current density?
+        # self.add_input("J_in", val=0.0, shape_by_conn=True, units="A/(cm**2)")
 
         # output profiles
-        self.add_output("cell_voltage", val=0.0, copy_shape="current_in", units="V")
-        self.add_output(
-            "hydrogen_produced", val=0.0, copy_shape="current_in", units=f"g/({self.dt}*s)"
-        )
-        self.add_output(
-            "oxygen_produced", val=0.0, copy_shape="current_in", units=f"g/({self.dt}*s)"
-        )
-        self.add_output(
-            "water_consumed", val=0.0, copy_shape="current_in", units=f"g/({self.dt}*s)"
-        )
-        self.add_output("hydrogen_production_rate", val=0.0, copy_shape="current_in", units="g/s")
-        self.add_output("oxygen_production_rate", val=0.0, copy_shape="current_in", units="g/s")
+        self.add_output("V_cell", val=0.0, copy_shape="I_in", units="V")
+        self.add_output("H2_produced", val=0.0, copy_shape="I_in", units=f"g/({self.dt}*s)")
+        self.add_output("O2_produced", val=0.0, copy_shape="I_in", units=f"g/({self.dt}*s)")
+        # self.add_output(
+        #     "H2O_consumed", val=0.0, copy_shape="I_in", units=f"g/({self.dt}*s)"
+        # )
+        self.add_output("H2_out", val=0.0, copy_shape="I_in", units="g/s")
+        self.add_output("O2_out", val=0.0, copy_shape="I_in", units="g/s")
 
-        self.add_output("current_density_out", val=0.0, copy_shape="current_in", units="A/(cm**2)")
+        self.add_output("J_out", val=0.0, copy_shape="I_in", units="A/(cm**2)")
+        self.add_output("P_cell", val=0.0, copy_shape="I_in", units="W")
 
         # output design variables
-        self.add_output("rated_cell_voltage", val=0.0, units="V")
-        self.add_output("rated_conversion_efficiency", val=0.0, units="W*h/kg")
-        self.add_output("rated_hydrogen_production", val=0.0, units="g/s")
-        self.add_output("rated_oxygen_production", val=0.0, units="g/s")
-        self.add_output("rated_cell_power", val=0.0, units="W")
+        # self.add_output("rated_V_cell", val=0.0, units="V")
+        # self.add_output("rated_conversion_efficiency", val=0.0, units="W*h/kg")
+        # self.add_output("rated_H2_production", val=0.0, units="g/s")
+        # self.add_output("rated_O2_production", val=0.0, units="g/s")
+        # self.add_output("rated_cell_power", val=0.0, units="W")
 
     def compute(self, inputs, outputs, discrete_inputs, discrete_outputs):
         """

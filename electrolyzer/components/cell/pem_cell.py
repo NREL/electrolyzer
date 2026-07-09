@@ -206,12 +206,10 @@ class PEMCell(CellBaseClass):
 
     def cell_voltage(self, inputs):
         temp_C = inputs["operating_temperature"]
-        if "current_density_in" in inputs:
-            J_cell = inputs["current_density_in"]
-        elif "current_in" in inputs:
-            J_cell = self.calculate_current_density(
-                inputs["current_in"], inputs["cell_active_area"]
-            )
+        if "J_in" in inputs:
+            J_cell = inputs["J_in"]
+        elif "I_in" in inputs:
+            J_cell = self.calculate_current_density(inputs["I_in"], inputs["A_cell"])
 
         Urev = self.reversible_overpotential(
             temp_C, inputs["cathode_pressure"], inputs["anode_pressure"]
@@ -233,21 +231,17 @@ class PEMCell(CellBaseClass):
         return V_cell
 
     def get_current_density(self, inputs):
-        if "current_density_in" in inputs:
-            return inputs["current_density_in"]
-        if "current_in" in inputs:
-            J_cell = self.calculate_current_density(
-                inputs["current_in"], inputs["cell_active_area"]
-            )
+        if "J_in" in inputs:
+            return inputs["J_in"]
+        if "I_in" in inputs:
+            J_cell = self.calculate_current_density(inputs["I_in"], inputs["A_cell"])
             return J_cell
 
     def get_current(self, inputs):
-        if "current_in" in inputs:
-            return inputs["current_in"]
-        if "current_density_in" in inputs:
-            I_cell = self.calculate_current(
-                inputs["current_density_in"], inputs["cell_active_area"]
-            )
+        if "I_in" in inputs:
+            return inputs["I_in"]
+        if "J_in" in inputs:
+            I_cell = self.calculate_current(inputs["J_in"], inputs["A_cell"])
             return I_cell
 
     def h2_production_rate(self, inputs):
@@ -292,17 +286,18 @@ class PEMCell(CellBaseClass):
     def compute(self, inputs, outputs):
         V_cell = self.cell_voltage(inputs)
         J_cell = self.get_current_density(inputs)
-        outputs["cell_voltage"] = V_cell
-        outputs["current_density_out"] = J_cell
+        outputs["V_cell"] = V_cell
+        outputs["J_out"] = J_cell
 
-        outputs["hydrogen_produced"] = self.h2_production(inputs)
-        outputs["hydrogen_production_rate"] = self.h2_production_rate(inputs)
-        outputs["oxygen_produced"] = self.o2_production(inputs)
-        outputs["oxygen_production_rate"] = self.o2_production_rate(inputs)
-        # outputs["water_consumed"]
+        outputs["H2_produced"] = self.h2_production(inputs)
+        outputs["H2_out"] = self.h2_production_rate(inputs)
+        outputs["O2_produced"] = self.o2_production(inputs)
+        outputs["O2_out"] = self.o2_production_rate(inputs)
+        outputs["P_cell"] = V_cell * inputs["I_in"]
+        # outputs["H2O_consumed"]
 
-        # outputs["rated_cell_voltage"]
+        # outputs["rated_V_cell"]
         # outputs["rated_conversion_efficiency"]
-        # outputs["rated_hydrogen_production"]
-        # outputs["rated_oxygen_production"]
+        # outputs["rated_H2_production"]
+        # outputs["rated_O2_production"]
         # outputs["rated_cell_power"]
