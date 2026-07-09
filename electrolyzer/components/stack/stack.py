@@ -9,7 +9,7 @@ from electrolyzer.tools.validators import contains
 
 @define(kw_only=True)
 class StackBaseConfig(BaseConfig):
-    n_cells = field(converter=int, validator=validators.gt(0.0))
+    # n_cells = field(converter=int, validator=validators.gt(0.0))
     include_degradation: bool = field()
     steady_degradation_rate: float = field(validator=validators.ge(0.0))
     cycle_degradation_rate: float = field(validator=validators.ge(0.0))
@@ -30,7 +30,7 @@ class StackBaseClass(om.ExplicitComponent):
         self.config = StackBaseConfig.from_dict(self.options["tech_config"]["stack_parameters"])
 
         # design variables
-        self.add_input("n_cells", val=self.config.n_cells, shape=1, units="unitless")
+        # self.add_input("n_cells", val=self.config.n_cells, shape=1, units="unitless")
         self.add_input(
             "steady_degradation_rate", val=self.config.steady_degradation_rate, shape=1, units="V/s"
         )
