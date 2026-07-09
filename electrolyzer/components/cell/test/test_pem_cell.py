@@ -108,53 +108,44 @@ def test_pem_cell_default(plant_config, pem_cell_config, subtests):
     comp = PEMCell(plant_config=plant_config, tech_config={"cell_parameters": pem_cell_config})
     prob.model.add_subsystem("cell", comp, promotes=["*"])
     prob.setup()
-    prob.set_val("cell.current_in", np.full(20, 1.0 * 1000), units="A")
+    prob.set_val("cell.I_in", np.full(20, 1.0 * 1000), units="A")
     prob.run_model()
 
     with subtests.test("Current density is 1 A/cm2"):
-        J_cell = prob.get_val("cell.current_density_out", units="A/(cm**2)")
+        J_cell = prob.get_val("cell.J_out", units="A/(cm**2)")
         assert np.all(J_cell == 1.0)
 
     with subtests.test("Cell voltage at 1 A/cm2"):
         assert (
-            pytest.approx(prob.get_val("cell.cell_voltage", units="V")[0], rel=1e-6, abs=1e-5)
+            pytest.approx(prob.get_val("cell.V_cell", units="V")[0], rel=1e-6, abs=1e-5)
             == 1.983580501
         )
 
     with subtests.test("H2 Production at 1 A/cm2"):
         assert (
-            pytest.approx(
-                prob.get_val("cell.hydrogen_produced", units="g/h")[0], rel=1e-6, abs=1e-5
-            )
+            pytest.approx(prob.get_val("cell.H2_produced", units="g/h")[0], rel=1e-6, abs=1e-5)
             == 37.45005976
         )
 
     with subtests.test("H2 Production Rate at 1 A/cm2"):
         assert (
-            pytest.approx(
-                prob.get_val("hydrogen_production_rate", units="g/h")[0], rel=1e-6, abs=1e-5
-            )
-            == 37.45005976
+            pytest.approx(prob.get_val("H2_out", units="g/h")[0], rel=1e-6, abs=1e-5) == 37.45005976
         )
 
     with subtests.test("O2 Production at 1 A/cm2"):
         assert (
-            pytest.approx(prob.get_val("cell.oxygen_produced", units="g/h")[0], rel=1e-6, abs=1e-5)
+            pytest.approx(prob.get_val("cell.O2_produced", units="g/h")[0], rel=1e-6, abs=1e-5)
             == 297.20412014327
         )
 
     with subtests.test("O2 Production Rate at 1 A/cm2"):
         assert (
-            pytest.approx(
-                prob.get_val("oxygen_production_rate", units="g/h")[0], rel=1e-6, abs=1e-5
-            )
+            pytest.approx(prob.get_val("O2_out", units="g/h")[0], rel=1e-6, abs=1e-5)
             == 297.20412014327
         )
 
-    power = prob.get_val("cell.cell_voltage", units="V") * prob.get_val(
-        "cell.current_in", units="A"
-    )
-    eff = (power / 1e3) / (prob.get_val("hydrogen_production_rate", units="kg/h"))
+    power = prob.get_val("cell.V_cell", units="V") * prob.get_val("cell.I_in", units="A")
+    eff = (power / 1e3) / (prob.get_val("H2_out", units="kg/h"))
     with subtests.test("H2 Conversion efficiency at 1 A/cm2"):
         assert pytest.approx(eff[0], rel=1e-6) == 52.96601698232939
 
@@ -169,5 +160,5 @@ def test_pem_cell_default(plant_config, pem_cell_config, subtests):
 #     )
 #     prob.model.add_subsystem("cell", comp, promotes=["*"])
 #     prob.setup()
-#     prob.set_val("cell.current_in", current_vals, units="A")
+#     prob.set_val("cell.I_in", current_vals, units="A")
 #     prob.run_model()
