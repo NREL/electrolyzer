@@ -1,6 +1,31 @@
 simulation:
   dt: 3600  # seconds
-  n_timesteps: 100.0  # number of timesteps
+  n_timesteps: 100.0  # number of timesteps, UNUSED
+# electrolyzer:
+system:
+  n_clusters: null
+  control_variable: null #"power" or "hydrogen"
+  control_model: null
+  model_inputs: null
+cluster:  # just a scaling factor
+  n_stacks: null
+stack:  # just a scaling factor
+  n_cells: null
+degradation:
+  model: null
+  model_inputs: null
+dynamics:
+  model: null
+  model_inputs: null
+cell:
+  model: null
+  model_inputs: null
+# pre-processing stuff
+bounds: null
+control_command_converter: null
+
+# un-made components
+eol: null
 electrolyzer:
   system_parameters:
     # system level parameters
