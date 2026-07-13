@@ -8,7 +8,6 @@ from electrolyzer.core.supported_models import supported_models
 from electrolyzer.components.building_blocks import (
     IJBounds,
     ScaleDown,
-    SimulateCell,
     CellDegradation,
     ClusterDynamics,
     CellPowerToCurrent,
@@ -97,10 +96,12 @@ class BERT:
             "simulation", om.Group(), promotes=["I_min", "I_max", "A_cell"]
         )
 
+        cell_nom = self.create_cell_model()
+        cell_real = self.create_cell_model()
         simulation.add_subsystem("dynamics", ClusterDynamics(), promotes=["I_min", "I_max"])
-        simulation.add_subsystem("cell_nominal", SimulateCell(), promotes=["A_cell"])
+        simulation.add_subsystem("cell_nominal", cell_nom, promotes=["A_cell"])
         simulation.add_subsystem("degradation", CellDegradation())
-        simulation.add_subsystem("cell_real", SimulateCell(), promotes=["A_cell"])
+        simulation.add_subsystem("cell_real", cell_real, promotes=["A_cell"])
 
         # connect dynamics current output to nominal cell current input
         simulation.connect("dynamics.I_out", "cell_nominal.I_in")
@@ -147,7 +148,9 @@ class BERT:
             promotes_inputs=["A_cell"],
             promotes_outputs=["I_ref_points", "I_min", "I_max"],
         )
-        pre_converter_grp.add_subsystem("ref_cell", SimulateCell(), promotes_inputs=["A_cell"])
+
+        cell = self.create_cell_model()
+        pre_converter_grp.add_subsystem("ref_cell", cell, promotes_inputs=["A_cell"])
         pre_converter_grp.add_subsystem(
             "p2i", CellPowerToCurrent(), promotes_inputs=["I_ref_points"]
         )
@@ -161,6 +164,34 @@ class BERT:
         cluster_group.connect("converter.ref_cell.P_cell_out", "converter.p2i.P_ref_points")
         # Connect scale down power to current conversion
         cluster_group.connect("scale_down.stack_to_cell.P_out", "converter.p2i.P_command")
+
+    def create_cell_model(self):
+        cell_config = self.config["cell"]
+        if (cell_model_name := cell_config.get("model", None)) is not None:
+            if (cell_model := self.supported_models.get(cell_model_name, None)) is not None:
+                return cell_model(plant_config=self.plant_config, tech_config=cell_config)
+            raise ValueError(f"{cell_model_name} not found in supported models")
+        raise ValueError("Missing model for ``cell`` component")
+
+    def create_degradation_model(self):
+        config = self.config["degradation"]
+        if (model_name := config.get("model", None)) is not None:
+            if (model := self.supported_models.get(model_name, None)) is not None:
+                return model(plant_config=self.plant_config, tech_config=config)
+            raise ValueError(
+                f"{model_name} (specified as degradation model) not found in supported_models"
+            )
+        raise ValueError("Missing model for ``degradation`` component")
+
+    def create_dynamics_model(self):
+        config = self.config["dynamics"]
+        if (model_name := config.get("model", None)) is not None:
+            if (model := self.supported_models.get(model_name, None)) is not None:
+                return model(plant_config=self.plant_config, tech_config=config)
+            raise ValueError(
+                f"{model_name} (specified as dynamics model) not found in supported_models"
+            )
+        raise ValueError("Missing model for ``dynamics`` component")
 
     # TODO: Connect the power from the "controller" to the CellPowerToCurrent
     # cluster_group.connect("ivc.P_command", "scale_down.P_cluster_in")
