@@ -1,31 +1,29 @@
 import openmdao.api as om
-from attrs import field, define
-
-from electrolyzer.core.utilities import BaseConfig
-from electrolyzer.tools.validators import contains
 
 
-@define(kw_only=True)
-class OLControlConfig(BaseConfig):
-    # n_clusters: int = field(converter=int, validator=validators.gt(0.0))
-    control_cmd: str = field(
-        converter=(str.lower, str.strip), validator=contains(["power", "hydrogen"])
-    )
+# @define(kw_only=True)
+# class OLControlConfig(BaseConfig):
+# n_clusters: int = field(converter=int, validator=validators.gt(0.0))
+# control_cmd: str = field(
+#     converter=(str.lower, str.strip), validator=contains(["power", "hydrogen"])
+# )
 
 
 class OLBasicSplit(om.ExplicitComponent):
     def initialize(self):
         self.options.declare("plant_config", types=dict, default={})
-        self.options.declare("tech_config", types=dict)
+        self.options.declare("tech_config", types=dict, default={})
         self.options.declare("n_clusters", types=int)
+        self.options.declare("control_variable", types=str, values=["power", "hydrogen"])
 
     def setup(self):
         # self.n_timesteps = self.options["plant_config"]["simulation"]["n_timesteps"]
         # self.dt = self.options["plant_config"]["simulation"]["dt"]
-        self.config = OLControlConfig.from_dict(self.options["tech_config"]["control_parameters"])
+        # self.config = OLControlConfig.from_dict(self.options["tech_config"]["control_parameters"])
         self.n_clusters = self.options["n_clusters"]
+        self.control_cmd = self.options["control_variable"]
 
-        if self.config.control_cmd == "power":
+        if self.control_cmd == "power":
             # output_cmd_fmt = "power_cmd_{ci}"
             self.add_input("P_command", val=0.0, shape_by_conn=True, units="kW")
             for ci in range(self.n_clusters):
@@ -40,11 +38,11 @@ class OLBasicSplit(om.ExplicitComponent):
         # self.add_input("n_clusters", val=self.config.n_clusters, units="unitless")
 
     def compute(self, inputs, outputs):
-        if self.config.control_cmd == "power":
-            power_per_cluster = inputs["P_command"] / self.config.n_clusters
+        if self.control_cmd == "power":
+            power_per_cluster = inputs["P_command"] / self.n_clusters
             for ci in range(self.n_clusters):
                 outputs[f"P_command_{ci}"] = power_per_cluster
         else:
-            h2_per_cluster = inputs["H2_command"] / self.config.n_clusters
+            h2_per_cluster = inputs["H2_command"] / self.n_clusters
             for ci in range(self.n_clusters):
                 outputs[f"H2_command_{ci}"] = h2_per_cluster
