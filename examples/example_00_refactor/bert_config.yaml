@@ -52,7 +52,9 @@ bounds:
     turndown_ratio: 0.1
     J_max: 2.0
 control_command_converter:
-  model: PowerToCurrentCurveFit
+  # model: PowerToCurrentCurveFit
+  coeff_model: PowerToCurrentCurveCoeff
+  translator_model: PowerToCurrent
   curve_fit_parameters:
     curve_to_use: cubic_with_sqrt_5coeffs
 #  # un-made components

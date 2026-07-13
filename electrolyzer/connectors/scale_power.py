@@ -6,9 +6,15 @@ class ScalePowerBase(om.ExplicitComponent):
 
     def initialize(self):
         self.options.declare("scaling_component", types=str)
+        self.options.declare("n_components", types=(int, float), default=1.0)
 
     def setup(self):
-        self.add_input(f"n_{self.options['scaling_component']}", val=1.0, shape=1, units="unitless")
+        self.add_input(
+            f"n_{self.options['scaling_component']}",
+            val=self.options["n_components"],
+            shape=1,
+            units="unitless",
+        )
         vars_to_units = {
             # "I": "A",
             "P": "W",

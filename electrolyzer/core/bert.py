@@ -1,3 +1,4 @@
+from enum import IntEnum
 from pathlib import Path
 
 import numpy as np
@@ -5,6 +6,13 @@ import openmdao.api as om
 
 from electrolyzer.core.file_utils import load_yaml
 from electrolyzer.core.supported_models import supported_models
+
+
+class State(IntEnum):
+    INITIALIZED = 0
+    SETUP = 1
+    RUN = 2
+    POST_PROCESS = 3
 
 
 class BERT:
@@ -22,6 +30,8 @@ class BERT:
 
         self.create_controller()
         self.create_components()
+
+        self.state = State.INITIALIZED
 
     def load_config(self, config_input):
         config = load_yaml(config_input)
@@ -42,14 +52,23 @@ class BERT:
         pass
 
     def setup(self):
-        pass
+        self.state = State.SETUP
 
-    def run(self):
         self.prob.setup()
         om.n2(self.prob, outfile=str(Path.cwd() / "n2_diagram.html"))
         self.prob.final_setup()
         self.prob.check_config(checks=["unconnected_inputs"], out_file=None)
+        pass
+
+    def run(self):
+        if self.state < State.SETUP:
+            self.setup()
+        # self.prob.setup()
+        # om.n2(self.prob, outfile=str(Path.cwd() / "n2_diagram.html"))
+        # self.prob.final_setup()
+        # self.prob.check_config(checks=["unconnected_inputs"], out_file=None)
         self.prob.run_model()
+        self.state = State.RUN
 
     def post_process(self):
         pass
@@ -72,12 +91,25 @@ class BERT:
         clusters.append(cluster_group)
 
         # Step 1: Create controller cluster connector components
-        self.create_controller_cluster_connector(cluster_group)
+        pre_translator = self.create_controller_cluster_connector(cluster_group)
+        # Translator has scale down + power to current conversion
+        translator = self.create_controller_translator(cluster_group)
         # Step 2: Create the simulate block of a cluster
-        self.create_cluster_simulation_block(cluster_group)
+        simulator = self.create_cluster_simulation_block(cluster_group)
 
-        self.plant.connect("controller.P_command", "Cluster0.scale_down.cluster_to_stack.P_in")
-        self.plant.connect("Cluster0.converter.p2i.I_command", "Cluster0.simulation.dynamics.I_in")
+        cluster_group.add_subsystem(
+            "converter", pre_translator, promotes=["A_cell", "I_min", "I_max"]
+        )
+        cluster_group.add_subsystem("translator", translator, promotes=["n_stacks", "n_cells"])
+        cluster_group.add_subsystem("simulation", simulator, promotes=["I_min", "I_max", "A_cell"])
+
+        # simulation.dynamics gets I_min and I_max from the converter outputs
+        # Connect the converter bounds to the
+        cluster_group.connect(
+            "converter.p2i.curve_coeffs", "translator.command_to_current.curve_coeffs"
+        )
+        cluster_group.connect("translator.command_to_current.I_command", "simulation.dynamics.I_in")
+        self.plant.connect("controller.P_command", "Cluster0.translator.cluster_to_stack.P_in")
 
         self.clusters = clusters
 
@@ -90,9 +122,10 @@ class BERT:
     def create_cluster_simulation_block(self, cluster_group):
         # TODO: replace the simulation group w/o requiring the cluster group input
         # TODO: add to cluster group in method that calls this one
-        simulation = cluster_group.add_subsystem(
-            "simulation", om.Group(), promotes=["I_min", "I_max", "A_cell"]
-        )
+        # simulation = cluster_group.add_subsystem(
+        #     "simulation", om.Group(), promotes=["I_min", "I_max", "A_cell"]
+        # )
+        simulation = om.Group()
 
         cell_nom = self.create_cell_model()
         cell_real = self.create_cell_model()
@@ -113,38 +146,48 @@ class BERT:
         simulation.connect("cell_nominal.V_cell_out", "degradation.V_cell_nominal")
         # connect the degraded current to the cell voltage
         simulation.connect("degradation.I_actual", "cell_real.I_in")
+        return simulation
 
-    def create_controller_cluster_connector(self, cluster_group):
-        # "Pre-processing", connects cluster to controller
-
-        # cell_scale_down = ScaleDown(scaling_component="cells")
-        # stack_scale_down = ScaleDown(scaling_component="stacks")
-        cell_scale_down = self.create_scale_down_component(scale_comp="cells")
-        stack_scale_down = self.create_scale_down_component(scale_comp="stacks")
-
-        scale_down = cluster_group.add_subsystem(
-            "scale_down", om.Group(), promotes=["n_stacks", "n_cells"]
+    def create_controller_translator(self, cluster_group):
+        cell_scale_down = self.create_scale_down_component(
+            scale_comp="cells", n_comps=self.config["stack"]["n_cells"]
         )
-        scale_down.add_subsystem(
+        stack_scale_down = self.create_scale_down_component(
+            scale_comp="stacks", n_comps=self.config["cluster"]["n_stacks"]
+        )
+
+        # translator = cluster_group.add_subsystem(
+        #     "translator", om.Group(), promotes=["n_stacks", "n_cells"]
+        # )
+        translator = om.Group()
+
+        translator.add_subsystem(
             "cluster_to_stack",
             stack_scale_down,
-            promotes_inputs=["n_stacks"],  # , ("P_in", "P_cluster_in")],
+            promotes_inputs=["n_stacks"],  # ("P_in", "P_cluster_in")
             # promotes_outputs=[("P_out", "P_stack_in")],
         )
-        scale_down.add_subsystem(
+        translator.add_subsystem(
             "stack_to_cell",
             cell_scale_down,
             promotes_inputs=["n_cells"],  # , ("P_in", "P_stack_in")],
             # promotes_outputs=[("P_out", "P_cell_in")],
         )
 
-        # bounds_component = IJBounds()
-        # cell_component = SimulateCell()
-        # current_translator_comp = CellPowerToCurrent()
-        pre_converter_grp = cluster_group.add_subsystem(
-            "converter", om.Group(), promotes=["A_cell", "I_min", "I_max"]
+        translator_comp = self.create_component(
+            "control_command_converter", model_key="translator_model"
         )
+        translator.add_subsystem("command_to_current", translator_comp)
 
+        # Connect scale downs
+        translator.connect("cluster_to_stack.P_out", "stack_to_cell.P_in")
+        # Connect scale down power to current conversion
+        translator.connect("stack_to_cell.P_out", "command_to_current.P_command")
+
+        return translator
+
+    def create_controller_cluster_connector(self, cluster_group):
+        pre_converter_grp = om.Group()
         bounds_comp = self.create_bounds_component()
         pre_converter_grp.add_subsystem(
             "IJ_ref",
@@ -155,18 +198,16 @@ class BERT:
 
         cell = self.create_cell_model()
         pre_converter_grp.add_subsystem("ref_cell", cell, promotes_inputs=["A_cell"])
-        command_translator = self.create_component("control_command_converter")
-        pre_converter_grp.add_subsystem("p2i", command_translator, promotes_inputs=["I_ref_points"])
 
-        # def connect_controller_cluster_connector(self, cluster_group):
-        # Connect scale downs
-        cluster_group.connect("scale_down.cluster_to_stack.P_out", "scale_down.stack_to_cell.P_in")
+        coeff_comp = self.create_component("control_command_converter", model_key="coeff_model")
+        pre_converter_grp.add_subsystem("p2i", coeff_comp, promotes_inputs=["I_ref_points"])
+
         # Connect the reference points to the cell
-        cluster_group.connect("converter.I_ref_points", "converter.ref_cell.I_in")
+        pre_converter_grp.connect("I_ref_points", "ref_cell.I_in")
         # Connect the power output from the cell to the power to current thing
-        cluster_group.connect("converter.ref_cell.P_cell_out", "converter.p2i.P_ref_points")
-        # Connect scale down power to current conversion
-        cluster_group.connect("scale_down.stack_to_cell.P_out", "converter.p2i.P_command")
+        pre_converter_grp.connect("ref_cell.P_cell_out", "p2i.P_ref_points")
+
+        return pre_converter_grp
 
     def create_cell_model(self):
         cell_config = self.config["cell"]
@@ -176,9 +217,9 @@ class BERT:
             raise ValueError(f"{cell_model_name} not found in supported models")
         raise ValueError("Missing model for ``cell`` component")
 
-    def create_component(self, component_type: str):
+    def create_component(self, component_type: str, model_key="model"):
         config = self.config[component_type]
-        if (model_name := config.get("model", None)) is not None:
+        if (model_name := config.get(model_key, None)) is not None:
             if (model := self.supported_models.get(model_name, None)) is not None:
                 return model(plant_config=self.plant_config, tech_config=config)
             raise ValueError(
@@ -200,10 +241,10 @@ class BERT:
             # TODO: Add checks on subbclass type for each component types
         raise ValueError(f"Missing model for ``{component_type}`` component")
 
-    def create_scale_down_component(self, scale_comp: str):
+    def create_scale_down_component(self, scale_comp: str, n_comps: int | float):
         if self.control_var == "power":
             model = self.supported_models["ScalePowerDown"]
-            return model(scaling_component=scale_comp)
+            return model(scaling_component=scale_comp, n_components=n_comps)
         if self.control_var == "hydrogen":
             raise NotImplementedError("hydrogen is not yet a supported control variable")
 

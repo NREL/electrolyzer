@@ -2,6 +2,7 @@ import openmdao.api as om
 
 
 class PowerToCurrentBase(om.ExplicitComponent):
+    # TODO: REMOVE OR REFACTOR
     def initialize(self):
         self.options.declare("tech_config", types=dict, default={})
         self.options.declare("plant_config", types=dict, default={})

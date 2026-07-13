@@ -3,7 +3,12 @@ from electrolyzer.components.cell.pem_cell import PEMCell
 from electrolyzer.connectors.bounds_baseclass import CurrentBoundsBase
 from electrolyzer.components.cluster.simple_dynamics import SimpleDynamics
 from electrolyzer.components.stack.simple_degradation import SimpleDegradation
-from electrolyzer.translators.simple_power_translator import PowerToCurrentCurveFit
+
+# from electrolyzer.translators.simple_power_translator import PowerToCurrentCurveFit
+from electrolyzer.translators.simple_power_translator import (
+    PowerToCurrent,
+    PowerToCurrentCurveCoeff,
+)
 from electrolyzer.control.openloop.simple_openloop_control import OLBasicSplit
 
 
@@ -18,7 +23,9 @@ supported_models = {
     # controller
     "OLBasicSplit": OLBasicSplit,
     # TRANSLATORS
-    "PowerToCurrentCurveFit": PowerToCurrentCurveFit,
+    # "PowerToCurrentCurveFit": PowerToCurrentCurveFit,
+    "PowerToCurrentCurveCoeff": PowerToCurrentCurveCoeff,
+    "PowerToCurrent": PowerToCurrent,
     # CONNECTORS
     "ScalePowerUp": ScalePowerUp,
     "ScalePowerDown": ScalePowerDown,
