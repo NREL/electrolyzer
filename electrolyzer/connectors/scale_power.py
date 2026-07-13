@@ -5,7 +5,6 @@ class ScalePowerBase(om.ExplicitComponent):
     """Scale things down"""
 
     def initialize(self):
-        self.options.declare("tech_config", types=dict, default={})
         self.options.declare("scaling_component", types=str)
 
     def setup(self):

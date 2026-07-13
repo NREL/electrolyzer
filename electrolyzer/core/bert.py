@@ -5,7 +5,6 @@ import openmdao.api as om
 
 from electrolyzer.core.file_utils import load_yaml
 from electrolyzer.core.supported_models import supported_models
-from electrolyzer.components.building_blocks import ScaleDown
 
 
 class BERT:
@@ -113,8 +112,10 @@ class BERT:
     def create_controller_cluster_connector(self, cluster_group):
         # "Pre-processing", connects cluster to controller
 
-        cell_scale_down = ScaleDown(scaling_component="cells")
-        stack_scale_down = ScaleDown(scaling_component="stacks")
+        # cell_scale_down = ScaleDown(scaling_component="cells")
+        # stack_scale_down = ScaleDown(scaling_component="stacks")
+        cell_scale_down = self.create_scale_down_component(scale_comp="cells")
+        stack_scale_down = self.create_scale_down_component(scale_comp="stacks")
 
         scale_down = cluster_group.add_subsystem(
             "scale_down", om.Group(), promotes=["n_stacks", "n_cells"]
@@ -193,6 +194,13 @@ class BERT:
             )
             # TODO: Add checks on subbclass type for each component types
         raise ValueError(f"Missing model for ``{component_type}`` component")
+
+    def create_scale_down_component(self, scale_comp: str):
+        if self.control_var == "power":
+            model = self.supported_models["ScalePowerDown"]
+            return model(scaling_component=scale_comp)
+        if self.control_var == "hydrogen":
+            raise NotImplementedError("hydrogen is not yet a supported control variable")
 
     # TODO: Connect the power from the "controller" to the CellPowerToCurrent
     # cluster_group.connect("ivc.P_command", "scale_down.P_cluster_in")
