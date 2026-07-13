@@ -33,7 +33,7 @@ class CurrentBoundsBase(om.ExplicitComponent):
         self.add_output("I_max", val=0.0, shape=1, units="A")
         self.add_output("I_min", val=0.0, shape=1, units="A")
         # self.add_output("J_min", val=0.0, shape=1, units="A/(cm**2)")
-        self.add_output("I_ref_points", val=0.0, shape=self.options["n_pts"], units="A")
+        self.add_output("I_ref_points", val=0.0, shape=self.config.n_ref_points, units="A")
         # self.add_output("J_ref_points", val=0.0, shape=self.options["n_pts"], units="A/(cm**2)")
 
     def compute(self, inputs, outputs):
@@ -42,7 +42,7 @@ class CurrentBoundsBase(om.ExplicitComponent):
         # outputs["J_min"] = outputs["I_min"] / inputs["A_cell"]
 
         outputs["I_ref_points"] = np.linspace(
-            outputs["I_min"], outputs["I_max"], self.options["n_pts"]
+            outputs["I_min"], outputs["I_max"], self.config.n_ref_points
         )
         # outputs["J_ref_points"] = np.linspace(
         #     outputs["J_min"], inputs["J_max"], self.options["n_pts"]

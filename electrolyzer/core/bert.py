@@ -5,7 +5,7 @@ import openmdao.api as om
 
 from electrolyzer.core.file_utils import load_yaml
 from electrolyzer.core.supported_models import supported_models
-from electrolyzer.components.building_blocks import IJBounds, ScaleDown
+from electrolyzer.components.building_blocks import ScaleDown
 
 
 class BERT:
@@ -138,9 +138,11 @@ class BERT:
         pre_converter_grp = cluster_group.add_subsystem(
             "converter", om.Group(), promotes=["A_cell", "I_min", "I_max"]
         )
+
+        bounds_comp = self.create_bounds_component()
         pre_converter_grp.add_subsystem(
             "IJ_ref",
-            IJBounds(),
+            bounds_comp,
             promotes_inputs=["A_cell"],
             promotes_outputs=["I_ref_points", "I_min", "I_max"],
         )
@@ -173,6 +175,19 @@ class BERT:
         if (model_name := config.get("model", None)) is not None:
             if (model := self.supported_models.get(model_name, None)) is not None:
                 return model(plant_config=self.plant_config, tech_config=config)
+            raise ValueError(
+                f"{model_name} (specified as {component_type} model) not found in supported_models"
+            )
+            # TODO: Add checks on subbclass type for each component types
+        raise ValueError(f"Missing model for ``{component_type}`` component")
+
+    def create_bounds_component(self):
+        component_type = "bounds"
+        config = self.config["bounds"]
+        cell_config = self.config["cell"].get("cell_parameters")
+        if (model_name := config.get("model", None)) is not None:
+            if (model := self.supported_models.get(model_name, None)) is not None:
+                return model(cell_config=cell_config, tech_config=config)
             raise ValueError(
                 f"{model_name} (specified as {component_type} model) not found in supported_models"
             )
