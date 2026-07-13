@@ -5,7 +5,7 @@ simulation:
 system:
   n_clusters: 1
   control_variable: power   #"power" or "hydrogen"
-  control_model: OLBasicSplit
+  # control_model: OLBasicSplit
   # control_parameters: null
 cluster:  # just a scaling factor
   n_stacks: 1

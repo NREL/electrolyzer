@@ -33,6 +33,10 @@ class BERT:
         self.n_clusters = system_config["n_clusters"]
         self.control_var = system_config["control_variable"]
         self.config = config
+        if self.control_var == "power":
+            self.control_passed_var = "P"
+        if self.control_var == "hydrogen":
+            self.control_passed_var = "H2"
 
     def create_custom_models(self, model_config, config_parent_path, model_types, prefix=""):
         pass
@@ -54,8 +58,9 @@ class BERT:
         pass
 
     def create_controller(self):
-        ivc_comp = om.IndepVarComp(name="P_command", val=np.full(20, 40.0), units="W")
-        self.plant.add_subsystem("controller", ivc_comp)
+        controller = self.create_controller_component()
+        # ivc_comp = om.IndepVarComp(name="P_command", val=np.full(20, 40.0), units="W")
+        self.plant.add_subsystem("controller", controller)
         # self.plant.connect("controller.P_command", "Cluster0.preprocess.converter.P_command")
 
     def create_components(self):
@@ -201,6 +206,23 @@ class BERT:
             return model(scaling_component=scale_comp)
         if self.control_var == "hydrogen":
             raise NotImplementedError("hydrogen is not yet a supported control variable")
+
+    def create_controller_component(self):
+        n_timesteps = int(self.plant_config["simulation"]["n_timesteps"])
+        if "control_model" not in self.system_config:
+            ivc_comp = om.IndepVarComp(
+                name=f"{self.control_passed_var}_command", val=np.full(n_timesteps, 40.0), units="W"
+            )
+            return ivc_comp
+        controller_name = self.system_config["control_model"]
+        controller_model = self.supported_models(controller_name)
+        controller = controller_model(
+            plant_config=self.plant_config,
+            tech_config=self.system_config,
+            n_clusters=self.n_clusters,
+            control_variable=self.control_var,
+        )
+        return controller
 
     # TODO: Connect the power from the "controller" to the CellPowerToCurrent
     # cluster_group.connect("ivc.P_command", "scale_down.P_cluster_in")
