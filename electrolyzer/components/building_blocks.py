@@ -198,8 +198,8 @@ class ScaleUp(om.ExplicitComponent):
         self.add_input(f"n_{self.options['scaling_component']}", val=1.0, shape=1, units="unitless")
         vars_to_units = {
             # "I": "A",
-            "H2": "kg/s",
             "P": "W",
+            "H2": "kg/s",
             # "V_stack": "V",
             # "V_deg_stack": "V"
         }
