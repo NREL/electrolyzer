@@ -7,7 +7,7 @@ from electrolyzer.tools.validators import contains
 
 @define(kw_only=True)
 class CellDegradationBaseConfig(BaseConfig):
-    degradation_impact: str = field(default="hydrogen", validator=contains["hydrogen", "power"])
+    degradation_impact: str = field(default="hydrogen", validator=contains(["hydrogen", "power"]))
 
 
 class CellDegradationBase(om.ExplicitComponent):

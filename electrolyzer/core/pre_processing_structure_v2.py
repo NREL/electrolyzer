@@ -107,7 +107,7 @@ power_curve_fit_error = prob.get_val("converter.p2i.I_command", units="A") - pro
 
 
 prob.setup()
-om.n2(prob, outfile=str(Path(__file__).parent / "n2_preprocessing_structure_v4.html"))
+om.n2(prob, outfile=str(Path(__file__).parent / "n2_preprocessing_structure_v4b.html"))
 prob.final_setup()
 prob.check_config(checks=["unconnected_inputs"], out_file=None)
 prob.run_model()

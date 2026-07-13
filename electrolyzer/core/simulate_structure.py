@@ -16,21 +16,25 @@ model = prob.model
 ivc_comp = om.IndepVarComp(name="I_command", val=np.full(20, 40.0), units="A")
 prob.model.add_subsystem("ivc", ivc_comp)
 
-bnds = prob.model.add_subsystem("IJ_ref", IJBounds(), promotes=["*"])
+bnds = prob.model.add_subsystem("IJ_ref", IJBounds())
 
 # ClusterDynamics has inputs of I_in, I_min, I_max and outputs I_out and on_off_status
 # CellDegradation has inputs of I_in, on_off_status, V_cell_nominal
 # CellDegradation outputs V_cell_degraded and I_actual
 # SimulateCell has inputs of A_cell, I_in
 # SimulateCell has outputs of V_cell_out, P_cell_out, H2_cell_out and J_out
-simulation = prob.model.add_subsystem(
-    "simulation", om.Group(), promotes=["I_min", "I_max", "A_cell"]
-)
-simulation.add_subsystem("dynamics", ClusterDynamics(), promotes=["I_min", "I_max"])  # UNSURE
+# simulation = prob.model.add_subsystem(
+#     "simulation", om.Group(), promotes=["I_min", "I_max", "A_cell"]
+# )
+simulation = prob.model.add_subsystem("simulation", om.Group(), promotes=["A_cell"])
+# simulation.add_subsystem("dynamics", ClusterDynamics(), promotes=["I_min", "I_max"])  # UNSURE
+simulation.add_subsystem("dynamics", ClusterDynamics())
 simulation.add_subsystem("cell_nominal", SimulateCell(), promotes=["A_cell"])
 simulation.add_subsystem("degradation", CellDegradation())
 simulation.add_subsystem("cell_real", SimulateCell(), promotes=["A_cell"])
-prob.model.connect("ivc.I_command", "simulation.dynamics.I_in")
+
+prob.model.connect("IJ_ref.I_max", "simulation.dynamics.I_max")
+prob.model.connect("IJ_ref.I_min", "simulation.dynamics.I_min")
 
 # connect dynamics current output to nominal cell current input
 simulation.connect("dynamics.I_out", "cell_nominal.I_in")
@@ -41,7 +45,9 @@ simulation.connect("dynamics.I_out", "degradation.I_in")
 # connect nominal cell voltage to the degradation
 simulation.connect("cell_nominal.V_cell_out", "degradation.V_cell_nominal")
 # connect the degraded current to the cell voltage
-simulation.connect("degradation.I_out", "cell_real.I_in")
+simulation.connect("degradation.I_actual", "cell_real.I_in")
+
+prob.model.connect("ivc.I_command", "simulation.dynamics.I_in")
 
 # r = om.SqliteRecorder('circuit.sqlite')
 # prob.driver.add_recorder(r)

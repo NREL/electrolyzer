@@ -30,7 +30,6 @@ class BERT:
 
         self.create_controller()
         self.create_components()
-        self.run()
 
     def load_config(self, config_input):
         config = load_yaml(config_input)
@@ -81,6 +80,7 @@ class BERT:
         self.create_cluster_simulation_block(cluster_group)
 
         self.plant.connect("controller.P_command", "Cluster0.scale_down.cluster_to_stack.P_in")
+        self.plant.connect("Cluster0.converter.p2i.I_command", "Cluster0.simulation.dynamics.I_in")
 
         self.clusters = clusters
 
@@ -111,7 +111,7 @@ class BERT:
         # connect nominal cell voltage to the degradation
         simulation.connect("cell_nominal.V_cell_out", "degradation.V_cell_nominal")
         # connect the degraded current to the cell voltage
-        simulation.connect("degradation.I_out", "cell_real.I_in")
+        simulation.connect("degradation.I_actual", "cell_real.I_in")
 
     def create_controller_cluster_connector(self, cluster_group):
         # "Pre-processing", connects cluster to controller
