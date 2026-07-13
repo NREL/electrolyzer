@@ -5,12 +5,7 @@ import openmdao.api as om
 
 from electrolyzer.core.file_utils import load_yaml
 from electrolyzer.core.supported_models import supported_models
-from electrolyzer.components.building_blocks import (
-    IJBounds,
-    ScaleDown,
-    ClusterDynamics,
-    CellPowerToCurrent,
-)
+from electrolyzer.components.building_blocks import IJBounds, ScaleDown, CellPowerToCurrent
 
 
 class BERT:
@@ -98,7 +93,8 @@ class BERT:
         cell_nom = self.create_cell_model()
         cell_real = self.create_cell_model()
         degradation = self.create_component("degradation")
-        simulation.add_subsystem("dynamics", ClusterDynamics(), promotes=["I_min", "I_max"])
+        dynamics = self.create_component("dynamics")
+        simulation.add_subsystem("dynamics", dynamics, promotes=["I_min", "I_max"])
         simulation.add_subsystem("cell_nominal", cell_nom, promotes=["A_cell"])
         simulation.add_subsystem("degradation", degradation)
         simulation.add_subsystem("cell_real", cell_real, promotes=["A_cell"])
