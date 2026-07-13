@@ -28,7 +28,8 @@ class BERT:
     def load_config(self, config_input):
         config = load_yaml(config_input)
         self.simulation_config = config["simulation"]
-        self.electrolyzer_config = config["electrolyzer"]
+        self.n_clusters = config["system"]["n_clusters"]
+        self.config = config
 
     def create_custom_models(self, model_config, config_parent_path, model_types, prefix=""):
         pass

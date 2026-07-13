@@ -3,63 +3,28 @@ simulation:
   n_timesteps: 100.0  # number of timesteps, UNUSED
 # electrolyzer:
 system:
-  n_clusters: null
-  control_variable: null #"power" or "hydrogen"
+  n_clusters: 1
+  control_variable: power   #"power" or "hydrogen"
   control_model: null
-  model_inputs: null
-cluster:  # just a scaling factor
-  n_stacks: null
-stack:  # just a scaling factor
-  n_cells: null
-degradation:
-  model: null
-  model_inputs: null
-dynamics:
-  model: null
-  model_inputs: null
-cell:
-  model: null
-  model_inputs: null
-# pre-processing stuff
-bounds: null
-control_command_converter: null
-
-# un-made components
-eol: null
-electrolyzer:
-  system_parameters:
-    # system level parameters
-    control_command: power   #"power" or "hydrogen"
-    n_clusters: 1.0
-  # Define control
-  control_strategy:
-    model: OpenLoopControl
   control_parameters: null
-
-  # Define cluster
-  cluster_model:
-    model: null
-  cluster_parameters:
-    n_stacks: 1
-    i_max: 2000  # max current, temporary
-    turndown_ratio: 0.1
-    include_startup_delay: false
-
-  # Define Stack
-  stack_model:
-    model: null
+cluster:  # just a scaling factor
+  n_stacks: 1
+stack:  # just a scaling factor
+  n_cells: 100
+degradation:
+  model: SimpleDegradation
   stack_parameters:
-    # n_cells: 10
     include_degradation: true
     steady_degradation_rate: 1.41737929e-10
     cycle_degradation_rate: 1.47821515e-04
     fatigue_degradation_rate: 3.33330244e-07
     fatigue_degradation_calc_interval_hrs: null
     degradation_impact_profile: hydrogen  # options are power or hydrogen
-
-  # Define Cell
-  cell_model:
-    model: PEMCell
+dynamics:
+  model: SimpleDynamics
+  cluster_parameters: null
+cell:
+  model: PEMCell
   cell_parameters:
     # PEM-specific
     f1: 250.0
@@ -79,3 +44,69 @@ electrolyzer:
     P_anode: 1.0  # bar
     P_cathode: 1.0  # bar
     R_ohmic_elec: 0.05  # Ohm*cm**2
+# pre-processing stuff
+bounds:
+  model: CurrentBoundsBase
+  bounds_parameters:
+    n_ref_points: 20
+    turndown_ratio: 0.1
+    J_max: 2.0
+control_command_converter:
+  model: PowerToCurrentCurveFit
+  curve_fit_parameters:
+    curve_to_use: cubic_with_sqrt_5coeffs
+#  # un-made components
+# eol: null
+# electrolyzer:
+#   system_parameters:
+#  # system level parameters
+#     control_command: power   #"power" or "hydrogen"
+#     n_clusters: 1.0
+#  # Define control
+#   control_strategy:
+#     model: OpenLoopControl
+#   control_parameters: null
+
+#  # Define cluster
+#   cluster_model:
+#     model: null
+#   cluster_parameters:
+#     n_stacks: 1
+#     i_max: 2000  # max current, temporary
+#     turndown_ratio: 0.1
+#     include_startup_delay: false
+
+#  # Define Stack
+#   stack_model:
+#     model: null
+#   stack_parameters:
+#  # n_cells: 10
+#     include_degradation: true
+#     steady_degradation_rate: 1.41737929e-10
+#     cycle_degradation_rate: 1.47821515e-04
+#     fatigue_degradation_rate: 3.33330244e-07
+#     fatigue_degradation_calc_interval_hrs: null
+#     degradation_impact_profile: hydrogen  # options are power or hydrogen
+
+#  # Define Cell
+#   cell_model:
+#     model: PEMCell
+#   cell_parameters:
+#  # PEM-specific
+#     f1: 250.0
+#     f2: 0.996
+#     i_0a: 2.0e-7 # required if kinetics_method is "per_electrode"
+#     i_0c: 2.0e-3 # required if kinetics_method is "per_electrode"
+#     alpha_a: 2.0 # required if kinetics_method is "per_electrode"
+#     alpha_c: 0.5 # required if kinetics_method is "per_electrode"
+#     water_vaporization_method: buck # options are "buck" or "antoine"
+#     activation_method: arcsinh # options are "ln", "log10" or "arcsinh"
+#     kinetics_method: per_electrode # options are "per_electrode" or "combined"
+#     Urev0_calc_method: normal # options are "normal" or "temp_adjusted"
+#  # cell base class
+#     A_cell: 1000.0  # cm**2
+#     membrane_thickness: 0.02  # cm
+#     temperature: 80.0  # celsius
+#     P_anode: 1.0  # bar
+#     P_cathode: 1.0  # bar
+#     R_ohmic_elec: 0.05  # Ohm*cm**2

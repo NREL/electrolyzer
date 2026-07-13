@@ -29,7 +29,7 @@ class SimpleDynamics(DynamicsBase):
         # self.n_timesteps = self.options["plant_config"]["simulation"]["n_timesteps"]
         self.dt = self.options["plant_config"]["simulation"]["dt"]
         self.config = SimpleDynamicsConfig.from_dict(
-            self.options["tech_config"]["cluster_parameters"]
+            self.options["tech_config"].get("cluster_parameters", {})
         )
 
         super().setup()

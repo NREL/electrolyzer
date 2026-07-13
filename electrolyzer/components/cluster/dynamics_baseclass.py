@@ -4,6 +4,7 @@ import openmdao.api as om
 class DynamicsBase(om.ExplicitComponent):
     def initialize(self):
         self.options.declare("tech_config", types=dict, default={})
+        self.options.declare("plant_config", types=dict, default={})
 
     def setup(self):
         self.add_input("I_in", val=0.0, shape_by_conn=True, units="A")
