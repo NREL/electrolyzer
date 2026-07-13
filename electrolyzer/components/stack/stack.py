@@ -1,14 +1,16 @@
 import numpy as np
 import rainflow
-import openmdao.api as om
 from attrs import field, define, validators
 
-from electrolyzer.core.utilities import BaseConfig
 from electrolyzer.tools.validators import contains
+from electrolyzer.components.stack.degradation_baseclass import (
+    CellDegradationBase,
+    CellDegradationBaseConfig,
+)
 
 
 @define(kw_only=True)
-class StackBaseConfig(BaseConfig):
+class SimpleDegradationConfig(CellDegradationBaseConfig):
     # n_cells = field(converter=int, validator=validators.gt(0.0))
     include_degradation: bool = field()
     steady_degradation_rate: float = field(validator=validators.ge(0.0))
@@ -18,7 +20,7 @@ class StackBaseConfig(BaseConfig):
     degradation_impact_profile: str = field(validator=contains(["power", "hydrogen"]))
 
 
-class StackBaseClass(om.ExplicitComponent):
+class SimpleDegradation(CellDegradationBase):
     def initialize(self):
         self.options.declare("plant_config", types=dict)
         self.options.declare("tech_config", types=dict)
@@ -27,8 +29,11 @@ class StackBaseClass(om.ExplicitComponent):
         # self.n_timesteps = self.options["plant_config"]["simulation"]["n_timesteps"]
         self.dt = self.options["plant_config"]["simulation"]["dt"]
 
-        self.config = StackBaseConfig.from_dict(self.options["tech_config"]["stack_parameters"])
+        self.config = SimpleDegradationConfig.from_dict(
+            self.options["tech_config"]["stack_parameters"]
+        )
 
+        super().setup()
         # design variables
         # self.add_input("n_cells", val=self.config.n_cells, shape=1, units="unitless")
         self.add_input(
@@ -36,11 +41,6 @@ class StackBaseClass(om.ExplicitComponent):
         )
 
         # input profiles
-        self.add_input("current_in", val=0.0, shape_by_conn=True, units="A")
-        self.add_input("on_off_status", val=0.0, copy_shape="current_in", units="unitless")
-        self.add_input("cell_voltage_nominal", val=0.0, copy_shape="current_in", units="V")
-        self.add_output("degradation_voltage", val=0.0, copy_shape="current_in", units="V")
-        self.add_output("actual_current", val=0.0, copy_shape="current_in", units="A")
 
         # output profiles
         # self.add_output("power_consumed", val=0.0, copy_shape="current_in", units="W")
@@ -122,10 +122,10 @@ class StackBaseClass(om.ExplicitComponent):
 
     def calculate_cell_degradation(self, inputs):
         if not self.config.include_degradation:
-            return np.zeros(len(inputs["cell_voltage_nominal"]))
+            return np.zeros(len(inputs["V_cell_nominal"]))
 
         V_deg_uptime = self.steady_degradation(
-            inputs["cell_voltage_nominal"],
+            inputs["V_cell_nominal"],
             inputs["on_off_status"],
             inputs["steady_degradation_rate"][0],
         )
@@ -136,7 +136,7 @@ class StackBaseClass(om.ExplicitComponent):
             self.config.fatigue_degradation_calc_interval_hrs / (self.dt / 3600)
         )
         V_fatigue = self.fatigue_degradation(
-            inputs["cell_voltage_nominal"], self.config.fatigue_degradation_rate, n_dt_fatigue_calc
+            inputs["V_cell_nominal"], self.config.fatigue_degradation_rate, n_dt_fatigue_calc
         )
         deg_signal = np.cumsum(V_deg_uptime) + np.cumsum(V_deg_onoff) + V_fatigue
 
@@ -146,9 +146,9 @@ class StackBaseClass(om.ExplicitComponent):
         V_cell_deg = self.calculate_cell_degradation(inputs)
 
         if self.config.degradation_impact_profile == "hydrogen":
-            outputs["actual_current"] = self.adjust_current_from_degradation(
-                inputs["cell_voltage_nominal"], V_cell_deg, inputs["current_in"]
+            outputs["I_actual"] = self.adjust_current_from_degradation(
+                inputs["V_cell_nominal"], V_cell_deg, inputs["I_in"]
             )
         else:
-            outputs["actual_current"] = inputs["current_in"]
-        outputs["degradation_voltage"] = V_cell_deg
+            outputs["I_actual"] = inputs["I_in"]
+        outputs["V_cell_degraded"] = V_cell_deg
