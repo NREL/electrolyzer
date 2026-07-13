@@ -8,7 +8,6 @@ from electrolyzer.core.supported_models import supported_models
 from electrolyzer.components.building_blocks import (
     IJBounds,
     ScaleDown,
-    CellDegradation,
     ClusterDynamics,
     CellPowerToCurrent,
 )
@@ -98,9 +97,10 @@ class BERT:
 
         cell_nom = self.create_cell_model()
         cell_real = self.create_cell_model()
+        degradation = self.create_component("degradation")
         simulation.add_subsystem("dynamics", ClusterDynamics(), promotes=["I_min", "I_max"])
         simulation.add_subsystem("cell_nominal", cell_nom, promotes=["A_cell"])
-        simulation.add_subsystem("degradation", CellDegradation())
+        simulation.add_subsystem("degradation", degradation)
         simulation.add_subsystem("cell_real", cell_real, promotes=["A_cell"])
 
         # connect dynamics current output to nominal cell current input
@@ -173,25 +173,16 @@ class BERT:
             raise ValueError(f"{cell_model_name} not found in supported models")
         raise ValueError("Missing model for ``cell`` component")
 
-    def create_degradation_model(self):
-        config = self.config["degradation"]
+    def create_component(self, component_type: str):
+        config = self.config[component_type]
         if (model_name := config.get("model", None)) is not None:
             if (model := self.supported_models.get(model_name, None)) is not None:
                 return model(plant_config=self.plant_config, tech_config=config)
             raise ValueError(
-                f"{model_name} (specified as degradation model) not found in supported_models"
+                f"{model_name} (specified as {component_type} model) not found in supported_models"
             )
-        raise ValueError("Missing model for ``degradation`` component")
-
-    def create_dynamics_model(self):
-        config = self.config["dynamics"]
-        if (model_name := config.get("model", None)) is not None:
-            if (model := self.supported_models.get(model_name, None)) is not None:
-                return model(plant_config=self.plant_config, tech_config=config)
-            raise ValueError(
-                f"{model_name} (specified as dynamics model) not found in supported_models"
-            )
-        raise ValueError("Missing model for ``dynamics`` component")
+            # TODO: Add checks on subbclass type for each component types
+        raise ValueError(f"Missing model for ``{component_type}`` component")
 
     # TODO: Connect the power from the "controller" to the CellPowerToCurrent
     # cluster_group.connect("ivc.P_command", "scale_down.P_cluster_in")
