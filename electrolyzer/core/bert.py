@@ -184,33 +184,3 @@ class BERT:
     #         )
     #     tech_group = self.plant.add_subsystem(tech_name, om.Group())
     #     tech_group.add_subsystem(name, tech_object, promots=["*"])
-
-    # def create_electrolyzer_system(self):
-    #     # make each thing a cluster
-    #     self.plant.add_subsystem(tech_name, om.Group())
-    #     pass
-
-    def connect_components(self):
-        # stack needs inputs of nominal current, status, and nominal cell voltage
-        # stack outputs actual current, degradation voltage
-        # hydrogen production is a function of current and current density
-
-        # connect current from cluster to stack
-        self.plant.connect("cluster.current_out", "stack.current_in")
-        # connect cluster status to stack
-        self.plant.connect("cluster.status_out", "stack.status_in")
-        # connect stack current to cell
-        self.plant.connect("stack.current_out", "cell.current_in")
-        # connect cell voltage to stack
-        self.plant.connect("cell.cell_voltage", "stack.voltage_in")
-
-        # Cluster -> Stack: nominal current input
-        # Cluster -> Cell: nominal current input
-        # Cell -> Stack: nominal cell voltage
-        # Cluster -> Stack: Cluster on/off status
-        # Stack -> Cell: actual current (degradation adjusted)
-
-        # Cell -> Stack: Stack needs nominal current input and nominal cell voltage input
-        # Stack outputs actual current to cell
-
-        pass
