@@ -7,7 +7,7 @@ from electrolyzer.translators.curve_fits import cubic_with_sqrt_5coeffs
 from electrolyzer.translators.power_translator_baseclass import PowerToCurrentBase
 
 
-curve_shapes = {"cubic_with_sqrt_5coeffs", cubic_with_sqrt_5coeffs}
+curve_shapes = {"cubic_with_sqrt_5coeffs": cubic_with_sqrt_5coeffs}
 
 
 @define(kw_only=True)

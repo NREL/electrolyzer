@@ -5,7 +5,7 @@ import openmdao.api as om
 
 from electrolyzer.core.file_utils import load_yaml
 from electrolyzer.core.supported_models import supported_models
-from electrolyzer.components.building_blocks import IJBounds, ScaleDown, CellPowerToCurrent
+from electrolyzer.components.building_blocks import IJBounds, ScaleDown
 
 
 class BERT:
@@ -147,9 +147,8 @@ class BERT:
 
         cell = self.create_cell_model()
         pre_converter_grp.add_subsystem("ref_cell", cell, promotes_inputs=["A_cell"])
-        pre_converter_grp.add_subsystem(
-            "p2i", CellPowerToCurrent(), promotes_inputs=["I_ref_points"]
-        )
+        command_translator = self.create_component("control_command_converter")
+        pre_converter_grp.add_subsystem("p2i", command_translator, promotes_inputs=["I_ref_points"])
 
         # def connect_controller_cluster_connector(self, cluster_group):
         # Connect scale downs
