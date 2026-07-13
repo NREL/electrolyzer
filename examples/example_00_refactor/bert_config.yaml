@@ -1,6 +1,6 @@
 simulation:
   dt: 3600  # seconds
-  n_timesteps: 100.0  # number of timesteps, UNUSED
+  n_timesteps: 20  # number of timesteps, UNUSED
 # electrolyzer:
 system:
   n_clusters: 1
