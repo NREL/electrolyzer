@@ -1,6 +1,6 @@
-from electrolyzer.components.stack.stack import StackBaseClass
 from electrolyzer.components.cell.pem_cell import PEMCell
-from electrolyzer.components.cluster.cluster import ClusterBaseClass
+from electrolyzer.components.cluster.simple_dynamics import SimpleDynamics
+from electrolyzer.components.stack.simple_degradation import SimpleDegradation
 
 
 supported_models = {
@@ -8,8 +8,8 @@ supported_models = {
     "PEMCell": PEMCell,
     # "AlkalineCell": "AlkalineCell",
     # stack
-    "StackBaseClass": StackBaseClass,
+    "SimpleDegradation": SimpleDegradation,
     # cluster
-    "ClusterBaseClass": ClusterBaseClass,
+    "SimpleDynamics": SimpleDynamics,
     # controller
 }
