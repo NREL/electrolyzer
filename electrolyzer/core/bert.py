@@ -1,3 +1,6 @@
+from pathlib import Path
+
+import numpy as np
 import openmdao.api as om
 
 from electrolyzer.core.file_utils import load_yaml
@@ -25,10 +28,19 @@ class BERT:
         # Create the plant model group and add components
         self.plant = self.model.add_subsystem("plant", plant_group, promotes=["*"])
 
+        self.create_controller()
+        self.create_components()
+        self.run()
+
     def load_config(self, config_input):
         config = load_yaml(config_input)
-        self.simulation_config = config["simulation"]
-        self.n_clusters = config["system"]["n_clusters"]
+        simulation_config = config.pop("simulation")
+        system_config = config.pop("system")
+
+        self.system_config = system_config
+        self.plant_config = {"simulation": simulation_config}
+        self.n_clusters = system_config["n_clusters"]
+        self.control_var = system_config["control_variable"]
         self.config = config
 
     def create_custom_models(self, model_config, config_parent_path, model_types, prefix=""):
@@ -38,13 +50,22 @@ class BERT:
         pass
 
     def run(self):
-        pass
+        self.prob.setup()
+        om.n2(self.prob, outfile=str(Path.cwd() / "n2_diagram.html"))
+        self.prob.final_setup()
+        self.prob.check_config(checks=["unconnected_inputs"], out_file=None)
+        self.prob.run_model()
 
     def post_process(self):
         pass
 
     def create_cluster_components(self):
         pass
+
+    def create_controller(self):
+        ivc_comp = om.IndepVarComp(name="P_command", val=np.full(20, 40.0), units="W")
+        self.plant.add_subsystem("controller", ivc_comp)
+        # self.plant.connect("controller.P_command", "Cluster0.preprocess.converter.P_command")
 
     def create_components(self):
         #
@@ -58,6 +79,8 @@ class BERT:
         self.create_controller_cluster_connector(cluster_group)
         # Step 2: Create the simulate block of a cluster
         self.create_cluster_simulation_block(cluster_group)
+
+        self.plant.connect("controller.P_command", "Cluster0.scale_down.cluster_to_stack.P_in")
 
         self.clusters = clusters
 

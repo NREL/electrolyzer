@@ -5,8 +5,8 @@ simulation:
 system:
   n_clusters: 1
   control_variable: power   #"power" or "hydrogen"
-  control_model: null
-  control_parameters: null
+  control_model: OLBasicSplit
+  # control_parameters: null
 cluster:  # just a scaling factor
   n_stacks: 1
 stack:  # just a scaling factor
@@ -18,11 +18,11 @@ degradation:
     steady_degradation_rate: 1.41737929e-10
     cycle_degradation_rate: 1.47821515e-04
     fatigue_degradation_rate: 3.33330244e-07
-    fatigue_degradation_calc_interval_hrs: null
+    fatigue_degradation_calc_interval_hrs: 200
     degradation_impact_profile: hydrogen  # options are power or hydrogen
 dynamics:
   model: SimpleDynamics
-  cluster_parameters: null
+  cluster_parameters: {}
 cell:
   model: PEMCell
   cell_parameters:

@@ -4,6 +4,7 @@ from electrolyzer.connectors.bounds_baseclass import CurrentBoundsBase
 from electrolyzer.components.cluster.simple_dynamics import SimpleDynamics
 from electrolyzer.components.stack.simple_degradation import SimpleDegradation
 from electrolyzer.translators.simple_power_translator import PowerToCurrentCurveFit
+from electrolyzer.control.openloop.simple_openloop_control import OLBasicSplit
 
 
 supported_models = {
@@ -15,6 +16,7 @@ supported_models = {
     # cluster
     "SimpleDynamics": SimpleDynamics,
     # controller
+    "OLBasicSplit": OLBasicSplit,
     # TRANSLATORS
     "PowerToCurrentCurveFit": PowerToCurrentCurveFit,
     # CONNECTORS
