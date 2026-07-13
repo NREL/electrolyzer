@@ -102,7 +102,7 @@ class PEMCellConfig(CellBaseConfig):
 class PEMCell(CellBaseClass):
     def initialize(self):
         super().initialize()
-        self.options.declare("mode", types=str, default="normal")
+        # self.options.declare("mode", types=str, default="normal")
 
     def setup(self):
         # self.n = 2  # number of electrons transferred in reaction
@@ -111,9 +111,9 @@ class PEMCell(CellBaseClass):
 
         super().setup()
 
-        self.add_input("H2_demand", val=0.0, shape_by_conn=True, units="g/s")
-        self.add_output("I_demand", val=0.0, copy_shape="H2_demand", units="A")
-        self.add_output("J_demand", val=0.0, copy_shape="H2_demand", units="A/(cm**2)")
+        # self.add_input("H2_demand", val=0.0, shape_by_conn=True, units="g/s")
+        # self.add_output("I_demand", val=0.0, copy_shape="H2_demand", units="A")
+        # self.add_output("J_demand", val=0.0, copy_shape="H2_demand", units="A/(cm**2)")
         # Design parameters
         if self.config.kinetics_method == "per_electrode":
             self.add_input("i_0a", val=self.config.i_0a, shape=1, units="A/(cm**2)")
@@ -301,24 +301,24 @@ class PEMCell(CellBaseClass):
         return I_cell
 
     def compute(self, inputs, outputs):
-        inputs_adjusted = dict(inputs.items())
-        if self.options["mode"] != "normal":
-            outputs["I_demand"] = self.hydrogen_rate_to_current(
-                inputs["A_cell"], inputs["H2_demand"], inputs["f1"], inputs["f2"]
-            )
-            outputs["J_demand"] = outputs["I_demand"] / inputs["A_cell"]
-            inputs_adjusted["I_in"] = outputs["I_demand"]
+        # inputs_adjusted = dict(inputs.items())
+        # if self.options["mode"] != "normal":
+        # outputs["I_demand"] = self.hydrogen_rate_to_current(
+        #     inputs["A_cell"], inputs["H2_demand"], inputs["f1"], inputs["f2"]
+        # )
+        # outputs["J_demand"] = outputs["I_demand"] / inputs["A_cell"]
+        # inputs_adjusted["I_in"] = outputs["I_demand"]
 
-        V_cell = self.cell_voltage(inputs_adjusted)
-        J_cell = self.get_current_density(inputs_adjusted)
-        outputs["V_cell"] = V_cell
+        V_cell = self.cell_voltage(inputs)
+        J_cell = self.get_current_density(inputs)
+        outputs["V_cell_out"] = V_cell
         outputs["J_out"] = J_cell
 
-        outputs["H2_produced"] = self.h2_production(inputs_adjusted)
-        outputs["H2_out"] = self.h2_production_rate(inputs_adjusted)
-        outputs["O2_produced"] = self.o2_production(inputs_adjusted)
-        outputs["O2_out"] = self.o2_production_rate(inputs_adjusted)
-        outputs["P_cell"] = V_cell * inputs["I_in"]
+        outputs["H2_produced"] = self.h2_production(inputs)
+        outputs["H2_cell_out"] = self.h2_production_rate(inputs)
+        outputs["O2_produced"] = self.o2_production(inputs)
+        outputs["O2_cell_out"] = self.o2_production_rate(inputs)
+        outputs["P_cell_out"] = V_cell * inputs["I_in"]
         # outputs["H2O_consumed"]
 
         # outputs["rated_V_cell"]

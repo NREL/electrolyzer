@@ -44,17 +44,17 @@ class CellBaseClass(om.ExplicitComponent):
         # self.add_input("J_in", val=0.0, shape_by_conn=True, units="A/(cm**2)")
 
         # output profiles
-        self.add_output("V_cell", val=0.0, copy_shape="I_in", units="V")
+        self.add_output("V_cell_out", val=0.0, copy_shape="I_in", units="V")
         self.add_output("H2_produced", val=0.0, copy_shape="I_in", units=f"g/({self.dt}*s)")
         self.add_output("O2_produced", val=0.0, copy_shape="I_in", units=f"g/({self.dt}*s)")
         # self.add_output(
         #     "H2O_consumed", val=0.0, copy_shape="I_in", units=f"g/({self.dt}*s)"
         # )
-        self.add_output("H2_out", val=0.0, copy_shape="I_in", units="g/s")
-        self.add_output("O2_out", val=0.0, copy_shape="I_in", units="g/s")
+        self.add_output("H2_cell_out", val=0.0, copy_shape="I_in", units="g/s")
+        self.add_output("O2_cell_out", val=0.0, copy_shape="I_in", units="g/s")
 
         self.add_output("J_out", val=0.0, copy_shape="I_in", units="A/(cm**2)")
-        self.add_output("P_cell", val=0.0, copy_shape="I_in", units="W")
+        self.add_output("P_cell_out", val=0.0, copy_shape="I_in", units="W")
 
         # output design variables
         # self.add_output("rated_V_cell", val=0.0, units="V")
