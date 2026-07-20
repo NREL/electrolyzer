@@ -78,9 +78,7 @@ class BERT:
 
     def create_controller(self):
         controller = self.create_controller_component()
-        # ivc_comp = om.IndepVarComp(name="P_command", val=np.full(20, 40.0), units="W")
         self.plant.add_subsystem("controller", controller)
-        # self.plant.connect("controller.P_command", "Cluster0.preprocess.converter.P_command")
 
     def create_components(self):
         #
@@ -91,11 +89,11 @@ class BERT:
         clusters.append(cluster_group)
 
         # Step 1: Create controller cluster connector components
-        pre_translator = self.create_controller_cluster_connector(cluster_group)
+        pre_translator = self.create_controller_cluster_connector()
         # Translator has scale down + power to current conversion
-        translator = self.create_controller_translator(cluster_group)
+        translator = self.create_controller_translator()
         # Step 2: Create the simulate block of a cluster
-        simulator = self.create_cluster_simulation_block(cluster_group)
+        simulator = self.create_cluster_simulation_block()
 
         cluster_group.add_subsystem(
             "converter", pre_translator, promotes=["A_cell", "I_min", "I_max"]
@@ -109,28 +107,20 @@ class BERT:
             "converter.p2i.curve_coeffs", "translator.command_to_current.curve_coeffs"
         )
         cluster_group.connect("translator.command_to_current.I_command", "simulation.dynamics.I_in")
-        self.plant.connect("controller.P_command", "Cluster0.translator.cluster_to_stack.P_in")
+        self.plant.connect(
+            "controller.P_command", f"Cluster{cluster_i}.translator.cluster_to_stack.P_in"
+        )
 
         self.clusters = clusters
 
-    def connect_compnents(self):
-        pass
-        # NOTE: see if we can connect things within functions
-        # Step 1: Connecter parts within the controller cluster_connector
-        # self.connect_controller_cluster_connector(self.clusters[cluster_i])
-
-    def create_cluster_simulation_block(self, cluster_group):
-        # TODO: replace the simulation group w/o requiring the cluster group input
-        # TODO: add to cluster group in method that calls this one
-        # simulation = cluster_group.add_subsystem(
-        #     "simulation", om.Group(), promotes=["I_min", "I_max", "A_cell"]
-        # )
+    def create_cluster_simulation_block(self):
         simulation = om.Group()
 
         cell_nom = self.create_cell_model()
         cell_real = self.create_cell_model()
         degradation = self.create_component("degradation")
         dynamics = self.create_component("dynamics")
+
         simulation.add_subsystem("dynamics", dynamics, promotes=["I_min", "I_max"])
         simulation.add_subsystem("cell_nominal", cell_nom, promotes=["A_cell"])
         simulation.add_subsystem("degradation", degradation)
@@ -148,7 +138,9 @@ class BERT:
         simulation.connect("degradation.I_actual", "cell_real.I_in")
         return simulation
 
-    def create_controller_translator(self, cluster_group):
+    def create_controller_translator(self):
+        translator = om.Group()
+
         cell_scale_down = self.create_scale_down_component(
             scale_comp="cells", n_comps=self.config["stack"]["n_cells"]
         )
@@ -156,22 +148,15 @@ class BERT:
             scale_comp="stacks", n_comps=self.config["cluster"]["n_stacks"]
         )
 
-        # translator = cluster_group.add_subsystem(
-        #     "translator", om.Group(), promotes=["n_stacks", "n_cells"]
-        # )
-        translator = om.Group()
-
         translator.add_subsystem(
             "cluster_to_stack",
             stack_scale_down,
-            promotes_inputs=["n_stacks"],  # ("P_in", "P_cluster_in")
-            # promotes_outputs=[("P_out", "P_stack_in")],
+            promotes_inputs=["n_stacks"],
         )
         translator.add_subsystem(
             "stack_to_cell",
             cell_scale_down,
-            promotes_inputs=["n_cells"],  # , ("P_in", "P_stack_in")],
-            # promotes_outputs=[("P_out", "P_cell_in")],
+            promotes_inputs=["n_cells"],
         )
 
         translator_comp = self.create_component(
@@ -181,12 +166,13 @@ class BERT:
 
         # Connect scale downs
         translator.connect("cluster_to_stack.P_out", "stack_to_cell.P_in")
+
         # Connect scale down power to current conversion
         translator.connect("stack_to_cell.P_out", "command_to_current.P_command")
 
         return translator
 
-    def create_controller_cluster_connector(self, cluster_group):
+    def create_controller_cluster_connector(self):
         pre_converter_grp = om.Group()
         bounds_comp = self.create_bounds_component()
         pre_converter_grp.add_subsystem(
@@ -264,26 +250,3 @@ class BERT:
             control_variable=self.control_var,
         )
         return controller
-
-    # TODO: Connect the power from the "controller" to the CellPowerToCurrent
-    # cluster_group.connect("ivc.P_command", "scale_down.P_cluster_in")
-
-    # def create_preprocessing_converter(self, control_cmd_type):
-    #     if control_cmd_type == "power":
-
-    # def create_technologies(self, control_coverter_signal):
-    #     cell_model_name = self.electrolyzer_config["cell_model"]["model"]
-    #     if control_coverter_signal == "hydrogen":
-    #         self.supported_models[cell_model_name](
-    #             plant_config=self.simulation_config,
-    #             tech_config=self.electrolyzer_config,
-    #             mode="h2_dmd_adj",
-    #         )
-    #     else:
-    #         self.supported_models[cell_model_name](
-    #             plant_config=self.simulation_config,
-    #             tech_config=self.electrolyzer_config,
-    #             mode="normal",
-    #         )
-    #     tech_group = self.plant.add_subsystem(tech_name, om.Group())
-    #     tech_group.add_subsystem(name, tech_object, promots=["*"])
