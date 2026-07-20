@@ -16,7 +16,8 @@ class State(IntEnum):
 
 
 class BERT:
-    def __init__(self, config_input):
+    def __init__(self, config_input, make_n2=True):
+        self.create_n2 = make_n2
         self.supported_models = supported_models.copy()
 
         # read in config file; it's a yaml dict that looks like this:
@@ -55,7 +56,8 @@ class BERT:
         self.state = State.SETUP
 
         self.prob.setup()
-        om.n2(self.prob, outfile=str(Path.cwd() / "n2_diagram.html"))
+        if self.create_n2:
+            om.n2(self.prob, outfile=str(Path.cwd() / "n2_diagram.html"))
         self.prob.final_setup()
         self.prob.check_config(checks=["unconnected_inputs"], out_file=None)
         pass

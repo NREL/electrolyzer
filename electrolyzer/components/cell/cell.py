@@ -31,7 +31,7 @@ class CellBaseClass(om.ExplicitComponent):
         self.dt = self.options["plant_config"]["simulation"]["dt"]
 
         # design variables
-        self.add_input("A_cell", val=self.config.A_cell, units="A/(cm**2)")
+        self.add_input("A_cell", val=self.config.A_cell, units="cm**2")
         self.add_input("membrane_thickness", val=self.config.membrane_thickness, units="cm")
         self.add_input("operating_temperature", val=self.config.temperature, units="degC")
         self.add_input("anode_pressure", self.config.P_anode, units="bar")

@@ -12,7 +12,7 @@ def test_example_00_no_controller(subtests):
     os.chdir(example_fpath)
 
     config_fpath = example_fpath / "bert_config.yaml"
-    bert = BERT(config_fpath)
+    bert = BERT(config_fpath, make_n2=False)
     bert.run()
 
     scale_fac = bert.model.get_val("Cluster0.n_stacks", units="unitless") * bert.model.get_val(
@@ -23,7 +23,7 @@ def test_example_00_no_controller(subtests):
     p_system_ref = p_cell_ref * scale_fac
     bert.model.set_val("controller.P_command", p_system_ref, units="W")
     bert.run()
-    i_estimated = bert.model.get_val("Cluster0.converter.p2i.I_command", units="A")
+    i_estimated = bert.model.get_val("Cluster0.translator.command_to_current.I_command", units="A")
     i_actual = bert.model.get_val("Cluster0.converter.I_ref_points", units="A")
     i_error = i_estimated - i_actual
 
