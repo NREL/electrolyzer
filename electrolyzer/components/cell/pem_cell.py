@@ -111,17 +111,20 @@ class PEMCell(CellBaseClass):
 
         super().setup()
 
-        # self.add_input("H2_demand", val=0.0, shape_by_conn=True, units="g/s")
-        # self.add_output("I_demand", val=0.0, copy_shape="H2_demand", units="A")
-        # self.add_output("J_demand", val=0.0, copy_shape="H2_demand", units="A/(cm**2)")
         # Design parameters
         if self.config.kinetics_method == "per_electrode":
             self.add_input("i_0a", val=self.config.i_0a, shape=1, units="A/(cm**2)")
             self.add_input("i_0c", val=self.config.i_0c, shape=1, units="A/(cm**2)")
             self.add_input("alpha_a", val=self.config.alpha_a, shape=1, units="unitless")
             self.add_input("alpha_c", val=self.config.alpha_c, shape=1, units="unitless")
+            self.add_input("b_combined", val=0, shape=1, units="V")
+            self.add_input("i_0combined", val=0, shape=1, units="A/(cm**2)")
         else:
             # b_combined is in V/decade
+            self.add_input("i_0a", val=0, shape=1, units="A/(cm**2)")
+            self.add_input("i_0c", val=0, shape=1, units="A/(cm**2)")
+            self.add_input("alpha_a", val=0, shape=1, units="unitless")
+            self.add_input("alpha_c", val=0, shape=1, units="unitless")
             self.add_input("b_combined", val=self.config.b_combined, shape=1, units="V")
             self.add_input("i_0combined", val=self.config.i0_combined, shape=1, units="A/(cm**2)")
 
