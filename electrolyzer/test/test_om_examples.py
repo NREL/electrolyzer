@@ -1,4 +1,5 @@
 import os
+import copy
 
 import numpy as np
 import pytest
@@ -25,6 +26,7 @@ def test_example_00_no_controller(subtests):
     bert.run()
     i_estimated = bert.model.get_val("Cluster0.translator.command_to_current.I_command", units="A")
     i_actual = bert.model.get_val("Cluster0.converter.I_ref_points", units="A")
+
     i_error = i_estimated - i_actual
 
     with subtests.test("100 cells per stack"):
@@ -35,3 +37,65 @@ def test_example_00_no_controller(subtests):
 
     with subtests.test("I-V Curve fit error is less than 0.105 A"):
         assert np.all(np.abs(i_error) < 0.105)
+
+    with subtests.test("Initial operating temperature"):
+        assert pytest.approx(80.0, rel=1e-6) == bert.model.get_val(
+            "operating_temperature", units="degC"
+        )
+
+    V_initial = copy.deepcopy(
+        bert.model.get_val("Cluster0.simulation.cell_real.V_cell_out", units="V")
+    )
+    coeff_initial = copy.deepcopy(
+        bert.model.get_val("Cluster0.translator.command_to_current.curve_coeffs", units="A/W")
+    )
+    V_ref_initial = copy.deepcopy(
+        bert.model.get_val("Cluster0.converter.ref_cell.V_cell_out", units="V")
+    )
+    P_ref_initial = copy.deepcopy(
+        bert.model.get_val("Cluster0.converter.ref_cell.P_cell_out", units="W")
+    )
+    with subtests.test("Initial reference rated power"):
+        assert (
+            pytest.approx(4467.1560, rel=1e-6)
+            == bert.model.get_val("Cluster0.converter.ref_cell.P_cell_out", units="W")[-1]
+        )
+    with subtests.test("Initial curve coefficients"):
+        expected_initial_coeff = np.array(
+            [7.08472908e-10, -1.70727901e-05, 4.78002528e-01, 2.34225327e00, -1.42414827e01]
+        )
+        assert pytest.approx(expected_initial_coeff, rel=1e-6, abs=1e-8) == coeff_initial
+    with subtests.test("Initial reference rated voltage"):
+        assert (
+            pytest.approx(2.233578003273652, rel=1e-6)
+            == bert.model.get_val("Cluster0.converter.ref_cell.V_cell_out", units="V")[-1]
+        )
+
+    # Change one of the cell design parameters
+    bert.model.set_val("operating_temperature", 60.0, units="degC")
+    bert.run()
+    V_new = bert.model.get_val("Cluster0.simulation.cell_real.V_cell_out", units="V")
+    coeff_new = bert.model.get_val(
+        "Cluster0.translator.command_to_current.curve_coeffs", units="A/W"
+    )
+    V_ref_new = bert.model.get_val("Cluster0.converter.ref_cell.V_cell_out", units="V")
+    P_ref_new = bert.model.get_val("Cluster0.converter.ref_cell.P_cell_out", units="W")
+
+    with subtests.test("Reference power points changed"):
+        P_ref_diff = np.abs(P_ref_initial - P_ref_new)
+        assert np.all(P_ref_diff < 91.0)
+        assert np.all(P_ref_diff > 0.20)
+
+    with subtests.test("Reference voltage points changed"):
+        V_ref_diff = np.abs(V_ref_initial - V_ref_new)
+        assert np.all(V_ref_diff < 0.046)
+        assert np.all(V_ref_diff > 0.0004)
+
+    with subtests.test("Real simulation voltage changed"):
+        assert not all(k for k in np.isclose(V_new, V_initial, rtol=1e-6, atol=1e-6))
+
+    with subtests.test("Curve coefficients changed"):
+        expected_coeff = np.array(
+            [8.30333109e-10, -1.92246906e-05, 4.75331901e-01, 2.52511351e00, -1.62209719e01]
+        )
+        assert pytest.approx(expected_coeff, rel=1e-6, abs=1e-8) == coeff_new
