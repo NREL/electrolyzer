@@ -6,6 +6,7 @@ import openmdao.api as om
 
 from electrolyzer.core.file_utils import load_yaml
 from electrolyzer.core.supported_models import supported_models
+from electrolyzer.components.cell.cell_design_params import get_cell_params_for_model
 
 
 class State(IntEnum):
@@ -43,6 +44,18 @@ class BERT:
         self.plant_config = {"simulation": simulation_config}
         self.n_clusters = system_config["n_clusters"]
         self.control_var = system_config["control_variable"]
+        if "cell" in config:
+            # clusters have identical cell models
+            self.identical_cells = True
+        else:
+            self.identical_cells = False
+            msg = (
+                "The ability to have clusters with different cell designs is not yet "
+                "available. Please ensure your config has a ``cell`` section with "
+                "the cell model and design parameters"
+            )
+            raise NotImplementedError(msg)
+
         self.config = config
         if self.control_var == "power":
             self.control_passed_var = "P"
@@ -84,24 +97,34 @@ class BERT:
 
     def create_components(self):
         #
-        # Step 0: Create cluster groups
+
+        # Get the design parameters of the cell
+        cell_design_params = get_cell_params_for_model(self.config["cell"].get("model", None))
+
+        # Step 1: Create cluster groups
         clusters = []
         cluster_i = 0
-        cluster_group = self.plant.add_subsystem(f"Cluster{cluster_i}", om.Group())
+
+        # NOTE: cell design params should only be promoted if all the clusters are identical
+        if self.identical_cells:
+            cluster_group = self.plant.add_subsystem(
+                f"Cluster{cluster_i}", om.Group(), promotes=cell_design_params
+            )
+        else:
+            cluster_group = self.plant.add_subsystem(f"Cluster{cluster_i}", om.Group())
         clusters.append(cluster_group)
 
-        # Step 1: Create controller cluster connector components
-        pre_translator = self.create_controller_cluster_connector()
+        # Step 2: Create controller cluster connector components
+        pre_translator = self.create_controller_cluster_connector(cell_design_params)
         # Translator has scale down + power to current conversion
         translator = self.create_controller_translator()
-        # Step 2: Create the simulate block of a cluster
-        simulator = self.create_cluster_simulation_block()
+        # Step 3: Create the simulate block of a cluster
+        simulator = self.create_cluster_simulation_block(cell_design_params)
 
-        cluster_group.add_subsystem(
-            "converter", pre_translator, promotes=["A_cell", "I_min", "I_max"]
-        )
+        promotion_vars = [*cell_design_params, "I_min", "I_max"]
+        cluster_group.add_subsystem("converter", pre_translator, promotes=promotion_vars)
         cluster_group.add_subsystem("translator", translator, promotes=["n_stacks", "n_cells"])
-        cluster_group.add_subsystem("simulation", simulator, promotes=["I_min", "I_max", "A_cell"])
+        cluster_group.add_subsystem("simulation", simulator, promotes=promotion_vars)
 
         # simulation.dynamics gets I_min and I_max from the converter outputs
         # Connect the converter bounds to the
@@ -115,7 +138,7 @@ class BERT:
 
         self.clusters = clusters
 
-    def create_cluster_simulation_block(self):
+    def create_cluster_simulation_block(self, cell_design_params):
         simulation = om.Group()
 
         cell_nom = self.create_cell_model()
@@ -124,9 +147,9 @@ class BERT:
         dynamics = self.create_component("dynamics")
 
         simulation.add_subsystem("dynamics", dynamics, promotes=["I_min", "I_max"])
-        simulation.add_subsystem("cell_nominal", cell_nom, promotes=["A_cell"])
+        simulation.add_subsystem("cell_nominal", cell_nom, promotes=cell_design_params)
         simulation.add_subsystem("degradation", degradation)
-        simulation.add_subsystem("cell_real", cell_real, promotes=["A_cell"])
+        simulation.add_subsystem("cell_real", cell_real, promotes=cell_design_params)
 
         # connect dynamics current output to nominal cell current input
         simulation.connect("dynamics.I_out", "cell_nominal.I_in")
@@ -174,7 +197,7 @@ class BERT:
 
         return translator
 
-    def create_controller_cluster_connector(self):
+    def create_controller_cluster_connector(self, cell_design_params):
         pre_converter_grp = om.Group()
         bounds_comp = self.create_bounds_component()
         pre_converter_grp.add_subsystem(
@@ -185,7 +208,7 @@ class BERT:
         )
 
         cell = self.create_cell_model()
-        pre_converter_grp.add_subsystem("ref_cell", cell, promotes_inputs=["A_cell"])
+        pre_converter_grp.add_subsystem("ref_cell", cell, promotes_inputs=cell_design_params)
 
         coeff_comp = self.create_component("control_command_converter", model_key="coeff_model")
         pre_converter_grp.add_subsystem("p2i", coeff_comp, promotes_inputs=["I_ref_points"])
