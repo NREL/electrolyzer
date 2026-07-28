@@ -2,6 +2,11 @@ import openmdao.api as om
 
 
 class DynamicsBase(om.ExplicitComponent):
+    """This baseclass is for components that enforce operational constraints
+    or reflect losses due to dynamic operational constraints such as
+    turndown ratio, max operating point, warm-up delays and other general losses
+    """
+
     def initialize(self):
         self.options.declare("tech_config", types=dict, default={})
         self.options.declare("plant_config", types=dict, default={})
