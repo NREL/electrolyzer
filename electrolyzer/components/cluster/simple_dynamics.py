@@ -7,7 +7,6 @@ from electrolyzer.components.cluster.dynamics_baseclass import DynamicsBase
 
 @define(kw_only=True)
 class SimpleDynamicsConfig(BaseConfig):
-    # n_stacks: int = field(converter=int, validator=validators.gt(0.0))
     # j_max: float = field(validator=validators.ge(0.0))
     # i_max: float = field(validator=validators.ge(0.0))
     # turndown_ratio: float = field(validator=range_val(0.0, 1.0))
@@ -26,7 +25,6 @@ class SimpleDynamics(DynamicsBase):
         self.options.declare("tech_config", types=dict)
 
     def setup(self):
-        # self.n_timesteps = self.options["plant_config"]["simulation"]["n_timesteps"]
         self.dt = self.options["plant_config"]["simulation"]["dt"]
         self.config = SimpleDynamicsConfig.from_dict(
             self.options["tech_config"].get("cluster_parameters", {})
@@ -37,7 +35,10 @@ class SimpleDynamics(DynamicsBase):
 
     def compute(self, inputs, outputs):
         on_off_status = np.where(inputs["I_in"] < inputs["I_min"], 0, 1)
-        # i_out should also reflect warm-up losses or delays
+        # should I_out also reflect warm-up losses or delays?
+        # I_out should reflect delays or losses that result in no production
+        # But a separate output should be used to reflect show partial losses (warm-up delay)
+
         i_out = np.clip(inputs["I_in"], a_min=inputs["I_min"], a_max=inputs["I_max"])
         # TODO: add start-up delay
         outputs["I_out"] = i_out

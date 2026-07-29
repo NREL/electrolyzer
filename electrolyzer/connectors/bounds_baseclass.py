@@ -15,7 +15,11 @@ class CurrentBoundsBaseConfig(BaseConfig):
 
 
 class CurrentBoundsBase(om.ExplicitComponent):
-    """Used to run simulate cell performance"""
+    """Provides the operational bounds of the electrolyzer via the operating current.
+    Also provides reference points of the current within these bounds which is used for
+    getting reference values of the cell performance (used for curve-fits) and
+    classifying the system performance at beginning-of-life and at rated operating conditions.
+    """
 
     def initialize(self):
         self.options.declare("tech_config", types=dict, default={})
