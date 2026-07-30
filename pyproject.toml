@@ -78,17 +78,18 @@ branch = true
 source = ["electrolyzer/*"]
 omit = [
   "setup.py",
-  "tests/*"
+  "tests/*",
+  "*/test/*",
+  "*/test_*.py"
 ]
 
 [tool.pytest.ini_options]
 python_files = [
   "tests/*.py",
+  "*/test/*",
+  "*/test_*.py"
 ]
-testpaths = [
-  "test/*.py",
-  "test/glue_code/*.py",
-]
+
 
 
 [tool.isort]
