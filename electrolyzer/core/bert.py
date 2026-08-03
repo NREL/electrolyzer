@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import openmdao.api as om
 
-from electrolyzer.core.file_utils import load_yaml
+from electrolyzer.core.file_utils import load_yaml, make_unique_case_name
 from electrolyzer.core.supported_models import supported_models
 from electrolyzer.connectors.series_scalar import (
     CombineSerialComponents,  # , SplitAcrossSerialComponents
@@ -39,6 +39,8 @@ class BERT:
 
         self.create_controller()
         self.create_components()
+
+        self.create_recorder(self.prob)
 
         self.state = State.INITIALIZED
 
@@ -383,3 +385,97 @@ class BERT:
             control_variable=self.control_var,
         )
         return controller
+
+    def create_recorder(self, opt_prob):
+        # TODO: put this into pose_optimization one day
+
+        if "recorder" not in self.config:
+            return None
+
+        folder_output = self.config.get("folder_output", Path.cwd())
+
+        recorder_options = ["record_inputs", "record_outputs", "record_residuals"]
+        if self.config["recorder"].get("flag", False):
+            # Check that the output folder exists and create it if needed
+            if not Path(folder_output).exists():
+                Path.mkdir(folder_output, parents=True, exist_ok=True)
+
+        if self.config["recorder"].get("flag", False):
+            # Check that the output folder exists and create it if needed
+            if not Path(folder_output).exists():
+                Path.mkdir(folder_output, parents=True, exist_ok=True)
+
+            overwrite_recorder = self.config["recorder"].get("overwrite_recorder", False)
+            recorder_path = Path(folder_output) / self.config["recorder"]["file"]
+
+            if not overwrite_recorder:
+                # make a unique filename with the same base as self.config["recorder"]["file"]
+                # separate out the filename without the extension
+                file_base = self.config["recorder"]["file"].split(".sql")[0]
+
+                recorder_fname = make_unique_case_name(
+                    Path(folder_output), f"{file_base}.sql", ".sql"
+                )
+                recorder_path = Path(folder_output) / recorder_fname
+
+            recorder_attachment = (
+                self.config["recorder"].get("recorder_attachment", "driver").lower()
+            )
+            allowed_attachments = ["driver", "model"]
+            if recorder_attachment not in allowed_attachments:
+                msg = (
+                    f"Invalid recorder attachment '{recorder_attachment}'. "
+                    f"Currently supported options are {allowed_attachments}. "
+                    "We recommend using 'driver' if running an optimization "
+                    "or parameter sweep in parallel."
+                )
+                raise ValueError(msg)
+
+            # Create recorder
+            recorder = om.SqliteRecorder(recorder_path)
+
+            if recorder_attachment == "model":
+                # add the recorder to the model
+                recorder_options += ["options_excludes"]
+
+                opt_prob.model.add_recorder(recorder)
+
+                for recorder_opt in recorder_options:
+                    if recorder_opt in self.config["recorder"]:
+                        opt_prob.model.recording_options[recorder_opt] = self.config[
+                            "recorder"
+                        ].get(recorder_opt)
+
+                opt_prob.model.recording_options["includes"] = self.config["recorder"].get(
+                    "includes", ["*"]
+                )
+                # opt_prob.model.recording_options["excludes"] = self.config["recorder"].get(
+                #     "excludes", ["*resource_data"]
+                # )
+                return recorder_path
+
+            if recorder_attachment == "driver":
+                recorder_options += [
+                    "record_constraints",
+                    "record_derivative",
+                    "record_desvars",
+                    "record_objectives",
+                ]
+                # add the recorder to the driver
+                opt_prob.driver.add_recorder(recorder)
+
+                for recorder_opt in recorder_options:
+                    if recorder_opt in self.config["recorder"]:
+                        opt_prob.driver.recording_options[recorder_opt] = self.config[
+                            "recorder"
+                        ].get(recorder_opt)
+
+                opt_prob.driver.recording_options["includes"] = self.config["recorder"].get(
+                    "includes", ["*"]
+                )
+                # opt_prob.driver.recording_options["excludes"] = self.config["recorder"].get(
+                #     "excludes", ["*resource_data"]
+                # )
+            return recorder_path
+
+        return None
