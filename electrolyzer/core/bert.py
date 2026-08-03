@@ -253,29 +253,12 @@ class BERT:
         coeff_comp = self.create_component("control_command_converter", model_key="coeff_model")
         pre_converter_grp.add_subsystem("p2i", coeff_comp, promotes_inputs=["I_ref_points"])
 
-        # 4. Add the cell classification component to the system
-        # The cell classification component inputs of J_in, P_in, H2_in, O2_in, V_in
-        # Cell model outputs P_cell_out, J_out, H2_cell_out, O2_cell_out, V_cell_out
-        # cell_classifier = CellClassification(tech_config={}, plant_config=self.plant_config)
-        # pre_converter_grp.add_subsystem(
-        #     "cell_classifier",
-        #     cell_classifier,
-        #     promotes_inputs=["I_ref_points", "I_min", "I_max"],
-        #     promotes_outputs=["*"],
-        #     )
-
         # Connect components
 
         # Connect the reference points to the cell
         pre_converter_grp.connect("I_ref_points", "ref_cell.I_in")
         # Connect the power output from the cell to the power to current thing
         pre_converter_grp.connect("ref_cell.P_cell_out", "p2i.P_ref_points")
-
-        # Connect outputs from reference cell to classifier component
-        # pre_converter_grp.connect("ref_cell.J_out", "cell_classifier.J_in")
-        # for var in ["P", "H2", "O2", "V"]:
-        #     pre_converter_grp.connect(f"ref_cell.{var}_cell_out", f"cell_classifier.{var}_in")
-
         return pre_converter_grp
 
     def create_cluster_classification_component(self):
