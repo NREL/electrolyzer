@@ -9,6 +9,7 @@ from electrolyzer.core.supported_models import supported_models
 from electrolyzer.connectors.series_scalar import (
     CombineSerialComponents,  # , SplitAcrossSerialComponents
 )
+from electrolyzer.connectors.degradation_combiner import CombineDegradation
 from electrolyzer.components.cell.cell_design_params import get_cell_params_for_model
 from electrolyzer.components.classifiers.cell_classifier import CellClassification
 
@@ -137,7 +138,8 @@ class BERT:
             "classifier", cluster_classifier, promotes=["I_min", "I_max", "n_cells", "n_stacks"]
         )
         cluster_group.add_subsystem("translator", translator, promotes=["n_stacks", "n_cells"])
-        cluster_group.add_subsystem("simulation", simulator, promotes=promotion_vars)
+        sim_prom_vars = [*promotion_vars, "n_stacks", "n_cells"]
+        cluster_group.add_subsystem("simulation", simulator, promotes=sim_prom_vars)
 
         # simulation.dynamics gets I_min and I_max from the converter outputs
         # Connect the converter bounds to the
@@ -172,10 +174,29 @@ class BERT:
         degradation = self.create_component("degradation")
         dynamics = self.create_component("dynamics")
 
+        cell_scale_up = CombineSerialComponents(
+            scaling_component="cells", n_comps=self.config["stack"]["n_cells"]
+        )
+        stack_scale_up = CombineSerialComponents(
+            scaling_component="stacks", n_comps=self.config["cluster"]["n_stacks"]
+        )
+        degradation_combiner = CombineDegradation()
+
         simulation.add_subsystem("dynamics", dynamics, promotes=["I_min", "I_max"])
         simulation.add_subsystem("cell_nominal", cell_nom, promotes=cell_design_params)
         simulation.add_subsystem("degradation", degradation)
         simulation.add_subsystem("cell_real", cell_real, promotes=cell_design_params)
+        simulation.add_subsystem("degradation_combiner", degradation_combiner)
+        simulation.add_subsystem("scale_cell_to_stack", cell_scale_up, promotes_inputs=["n_cells"])
+
+        scale_up_base_vars = ["J", "P", "H2", "O2", "V"]  # todo: add in I?
+        cluster_out_prom_vars = [(f"{v}_out", f"Cluster_{v}") for v in scale_up_base_vars]
+        simulation.add_subsystem(
+            "scale_stack_to_cluster",
+            stack_scale_up,
+            promotes_inputs=["n_stacks"],
+            promotes_outputs=cluster_out_prom_vars,
+        )
 
         # connect dynamics current output to nominal cell current input
         simulation.connect("dynamics.I_out", "cell_nominal.I_in")
@@ -187,6 +208,28 @@ class BERT:
         simulation.connect("cell_nominal.V_cell_out", "degradation.V_cell_nominal")
         # connect the degraded current to the cell voltage
         simulation.connect("degradation.I_actual", "cell_real.I_in")
+
+        # combine the degradation results at the cell level
+        simulation.connect("cell_real.V_cell_out", "degradation_combiner.V_cell")
+        simulation.connect("degradation.V_cell_degraded", "degradation_combiner.V_cell_deg")
+        simulation.connect("degradation.I_actual", "degradation_combiner.I_actual")
+
+        # connect the outputs from the real cell to the cell scale-up components
+        simulation.connect("cell_real.J_out", "scale_cell_to_stack.J_in")
+        simulation.connect("degradation.I_actual", "scale_cell_to_stack.I_in")
+        # TODO: in the future, add a losses component and connect the outputs from that to the scale-up
+        simulation.connect("cell_real.H2_cell_out", "scale_cell_to_stack.H2_in")
+        simulation.connect("cell_real.O2_cell_out", "scale_cell_to_stack.O2_in")
+
+        # connect the power and voltage from the degradation combiner to the scale-up components
+        simulation.connect("degradation_combiner.V_cell_total", "scale_cell_to_stack.V_in")
+        simulation.connect("degradation_combiner.P_cell_total", "scale_cell_to_stack.P_in")
+
+        # Scale up from stack to cluster level
+
+        for var in scale_up_base_vars:
+            simulation.connect(f"scale_cell_to_stack.{var}_out", f"scale_stack_to_cluster.{var}_in")
+
         return simulation
 
     def create_controller_translator(self):
