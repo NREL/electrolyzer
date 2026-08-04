@@ -4,9 +4,16 @@ from pathlib import Path
 import numpy as np
 import openmdao.api as om
 
-from electrolyzer.core.file_utils import load_yaml
+from electrolyzer.core.file_utils import load_yaml, make_unique_case_name
 from electrolyzer.core.supported_models import supported_models
+from electrolyzer.connectors.series_scalar import (
+    CombineSerialComponents,  # , SplitAcrossSerialComponents
+)
 from electrolyzer.components.cell.cell_design_params import get_cell_params_for_model
+from electrolyzer.components.classifiers.cell_classifier import CellClassification
+
+
+# from electrolyzer.components.classifiers.system_performance import SystemPerformance
 
 
 class State(IntEnum):
@@ -32,6 +39,8 @@ class BERT:
 
         self.create_controller()
         self.create_components()
+
+        self.create_recorder(self.prob)
 
         self.state = State.INITIALIZED
 
@@ -116,6 +125,7 @@ class BERT:
 
         # Step 2: Create controller cluster connector components
         pre_translator = self.create_controller_cluster_connector(cell_design_params)
+        cluster_classifier = self.create_cluster_classification_component()
         # Translator has scale down + power to current conversion
         translator = self.create_controller_translator()
         # Step 3: Create the simulate block of a cluster
@@ -123,6 +133,9 @@ class BERT:
 
         promotion_vars = [*cell_design_params, "I_min", "I_max"]
         cluster_group.add_subsystem("converter", pre_translator, promotes=promotion_vars)
+        cluster_group.add_subsystem(
+            "classifier", cluster_classifier, promotes=["I_min", "I_max", "n_cells", "n_stacks"]
+        )
         cluster_group.add_subsystem("translator", translator, promotes=["n_stacks", "n_cells"])
         cluster_group.add_subsystem("simulation", simulator, promotes=promotion_vars)
 
@@ -132,9 +145,22 @@ class BERT:
             "converter.p2i.curve_coeffs", "translator.command_to_current.curve_coeffs"
         )
         cluster_group.connect("translator.command_to_current.I_command", "simulation.dynamics.I_in")
+
+        # connect converter group stuff to classification block
+        cluster_group.connect("converter.I_ref_points", "classifier.I_ref_points")
+        cluster_group.connect("converter.ref_cell.J_out", "classifier.cell_classifier.J_in")
+        for var in ["P", "H2", "O2", "V"]:
+            cluster_group.connect(
+                f"converter.ref_cell.{var}_cell_out", f"classifier.cell_classifier.{var}_in"
+            )
+
+        # Connect controller to cluster
         self.plant.connect(
             "controller.P_command", f"Cluster{cluster_i}.translator.cluster_to_stack.P_in"
         )
+
+        # cluster_group.connect("converter.I_ref_points", "classifier."
+        # cluster_group.connect("converter.ref_cell.")
 
         self.clusters = clusters
 
@@ -198,8 +224,22 @@ class BERT:
         return translator
 
     def create_controller_cluster_connector(self, cell_design_params):
+        """Group containing the:
+
+        1. Bounds and reference point component (min/max bounds)
+        2. Reference cell component
+        3. Curve coefficient component
+
+        Args:
+            cell_design_params (list[str]): cell design parameters to promote
+
+        Returns:
+            om.Group: pre-simulation group
+        """
         pre_converter_grp = om.Group()
         bounds_comp = self.create_bounds_component()
+
+        # 1. Operational bounds and reference point component
         pre_converter_grp.add_subsystem(
             "IJ_ref",
             bounds_comp,
@@ -207,18 +247,88 @@ class BERT:
             promotes_outputs=["I_ref_points", "I_min", "I_max"],
         )
 
+        # 2. Reference cell model
         cell = self.create_cell_model()
         pre_converter_grp.add_subsystem("ref_cell", cell, promotes_inputs=cell_design_params)
 
+        # 3. Curve coefficient component
         coeff_comp = self.create_component("control_command_converter", model_key="coeff_model")
         pre_converter_grp.add_subsystem("p2i", coeff_comp, promotes_inputs=["I_ref_points"])
+
+        # Connect components
 
         # Connect the reference points to the cell
         pre_converter_grp.connect("I_ref_points", "ref_cell.I_in")
         # Connect the power output from the cell to the power to current thing
         pre_converter_grp.connect("ref_cell.P_cell_out", "p2i.P_ref_points")
-
         return pre_converter_grp
+
+    def create_cluster_classification_component(self):
+        # 4. Add the cell classification component to the system
+        # The cell classification component inputs of J_in, P_in, H2_in, O2_in, V_in
+        # and outputs min and max values of each input, plus min/max efficiency values
+        # Cell model outputs P_cell_out, J_out, H2_cell_out, O2_cell_out, V_cell_out
+        classifier_group = om.Group()
+
+        cell_classifier = CellClassification(tech_config={}, plant_config=self.plant_config)
+        classifier_group.add_subsystem(
+            "cell_classifier",
+            cell_classifier,
+            promotes_inputs=["I_ref_points", "I_min", "I_max"],
+            promotes_outputs=["efficiency_min", "efficiency_max"],
+        )
+
+        cell_scale_up_lb = CombineSerialComponents(
+            scaling_component="cells", n_comps=self.config["stack"]["n_cells"]
+        )
+        stack_scale_up_lb = CombineSerialComponents(
+            scaling_component="stacks", n_comps=self.config["cluster"]["n_stacks"]
+        )
+
+        cell_scale_up_ub = CombineSerialComponents(
+            scaling_component="cells", n_comps=self.config["stack"]["n_cells"]
+        )
+        stack_scale_up_ub = CombineSerialComponents(
+            scaling_component="stacks", n_comps=self.config["cluster"]["n_stacks"]
+        )
+
+        bounds_base_vars = ["J", "P", "H2", "O2", "V"]
+
+        promoted_outputs_lb = [(f"{v}_out", f"{v}_min") for v in bounds_base_vars]
+        promoted_outputs_ub = [(f"{v}_out", f"{v}_max") for v in bounds_base_vars]
+
+        # # lower bounds
+        classifier_group.add_subsystem(
+            "cell_to_stack_lb", cell_scale_up_lb, promotes_inputs=["n_cells"]
+        )
+        classifier_group.add_subsystem(
+            "stack_to_cluster_lb",
+            stack_scale_up_lb,
+            promotes_inputs=["n_stacks"],
+            promotes_outputs=promoted_outputs_lb,
+        )
+        # # upper bounds
+        classifier_group.add_subsystem(
+            "cell_to_stack_ub", cell_scale_up_ub, promotes_inputs=["n_cells"]
+        )
+        classifier_group.add_subsystem(
+            "stack_to_cluster_ub",
+            stack_scale_up_ub,
+            promotes_inputs=["n_stacks"],
+            promotes_outputs=promoted_outputs_ub,
+        )
+        # Cluster0.classifier.cell_to_stack_lb.I_in
+        # classifier_group.connect("I_min", "cell_to_stack_lb.I_in")
+        for var in bounds_base_vars:
+            #     # scale-up lower bounds
+            classifier_group.connect(f"cell_classifier.{var}_min", f"cell_to_stack_lb.{var}_in")
+            classifier_group.connect(f"cell_to_stack_lb.{var}_out", f"stack_to_cluster_lb.{var}_in")
+
+            #     # scale-up upper bounds
+            classifier_group.connect(f"cell_classifier.{var}_max", f"cell_to_stack_ub.{var}_in")
+            classifier_group.connect(f"cell_to_stack_ub.{var}_out", f"stack_to_cluster_ub.{var}_in")
+
+        return classifier_group
 
     def create_cell_model(self):
         cell_config = self.config["cell"]
@@ -275,3 +385,97 @@ class BERT:
             control_variable=self.control_var,
         )
         return controller
+
+    def create_recorder(self, opt_prob):
+        # TODO: put this into pose_optimization one day
+
+        if "recorder" not in self.config:
+            return None
+
+        folder_output = self.config.get("folder_output", Path.cwd())
+
+        recorder_options = ["record_inputs", "record_outputs", "record_residuals"]
+        if self.config["recorder"].get("flag", False):
+            # Check that the output folder exists and create it if needed
+            if not Path(folder_output).exists():
+                Path.mkdir(folder_output, parents=True, exist_ok=True)
+
+        if self.config["recorder"].get("flag", False):
+            # Check that the output folder exists and create it if needed
+            if not Path(folder_output).exists():
+                Path.mkdir(folder_output, parents=True, exist_ok=True)
+
+            overwrite_recorder = self.config["recorder"].get("overwrite_recorder", False)
+            recorder_path = Path(folder_output) / self.config["recorder"]["file"]
+
+            if not overwrite_recorder:
+                # make a unique filename with the same base as self.config["recorder"]["file"]
+                # separate out the filename without the extension
+                file_base = self.config["recorder"]["file"].split(".sql")[0]
+
+                recorder_fname = make_unique_case_name(
+                    Path(folder_output), f"{file_base}.sql", ".sql"
+                )
+                recorder_path = Path(folder_output) / recorder_fname
+
+            recorder_attachment = (
+                self.config["recorder"].get("recorder_attachment", "driver").lower()
+            )
+            allowed_attachments = ["driver", "model"]
+            if recorder_attachment not in allowed_attachments:
+                msg = (
+                    f"Invalid recorder attachment '{recorder_attachment}'. "
+                    f"Currently supported options are {allowed_attachments}. "
+                    "We recommend using 'driver' if running an optimization "
+                    "or parameter sweep in parallel."
+                )
+                raise ValueError(msg)
+
+            # Create recorder
+            recorder = om.SqliteRecorder(recorder_path)
+
+            if recorder_attachment == "model":
+                # add the recorder to the model
+                recorder_options += ["options_excludes"]
+
+                opt_prob.model.add_recorder(recorder)
+
+                for recorder_opt in recorder_options:
+                    if recorder_opt in self.config["recorder"]:
+                        opt_prob.model.recording_options[recorder_opt] = self.config[
+                            "recorder"
+                        ].get(recorder_opt)
+
+                opt_prob.model.recording_options["includes"] = self.config["recorder"].get(
+                    "includes", ["*"]
+                )
+                # opt_prob.model.recording_options["excludes"] = self.config["recorder"].get(
+                #     "excludes", ["*resource_data"]
+                # )
+                return recorder_path
+
+            if recorder_attachment == "driver":
+                recorder_options += [
+                    "record_constraints",
+                    "record_derivative",
+                    "record_desvars",
+                    "record_objectives",
+                ]
+                # add the recorder to the driver
+                opt_prob.driver.add_recorder(recorder)
+
+                for recorder_opt in recorder_options:
+                    if recorder_opt in self.config["recorder"]:
+                        opt_prob.driver.recording_options[recorder_opt] = self.config[
+                            "recorder"
+                        ].get(recorder_opt)
+
+                opt_prob.driver.recording_options["includes"] = self.config["recorder"].get(
+                    "includes", ["*"]
+                )
+                # opt_prob.driver.recording_options["excludes"] = self.config["recorder"].get(
+                #     "excludes", ["*resource_data"]
+                # )
+            return recorder_path
+
+        return None

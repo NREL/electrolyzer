@@ -99,3 +99,45 @@ def test_example_00_no_controller(subtests):
             [8.30333109e-10, -1.92246906e-05, 4.75331901e-01, 2.52511351e00, -1.62209719e01]
         )
         assert pytest.approx(expected_coeff, rel=1e-6, abs=1e-8) == coeff_new
+
+    with subtests.test("Cluster min voltage"):
+        assert (
+            pytest.approx(
+                bert.model.get_val("Cluster0.classifier.cell_classifier.V_max", units="V"), rel=1e-6
+            )
+            == bert.model.get_val("Cluster0.classifier.V_max", units="V") / scale_fac
+        )
+
+    with subtests.test("Cell/stack/cluster max power"):
+        cell_rated_power = bert.model.get_val(
+            "Cluster0.classifier.cell_to_stack_ub.P_in", units="kW"
+        )
+        stack_rated_power = bert.model.get_val(
+            "Cluster0.classifier.stack_to_cluster_ub.P_in", units="kW"
+        )
+        assert (
+            pytest.approx(
+                cell_rated_power * bert.model.get_val("Cluster0.n_cells", units="unitless"),
+                rel=1e-6,
+            )
+            == stack_rated_power
+        )
+        assert pytest.approx(
+            bert.model.get_val("Cluster0.classifier.P_max", units="kW"), rel=1e-6
+        ) == stack_rated_power * bert.model.get_val("Cluster0.n_stacks", units="unitless")
+
+    with subtests.test("Rated conversion efficiency"):
+        assert pytest.approx(60.84498639, rel=1e-6) == bert.model.get_val(
+            "Cluster0.classifier.efficiency_max", units="kW*h/kg"
+        )
+
+    with subtests.test("Min conversion efficiency"):
+        assert pytest.approx(48.23406508, rel=1e-6) == bert.model.get_val(
+            "Cluster0.classifier.efficiency_min", units="kW*h/kg"
+        )
+
+    with subtests.test("H2 rated production"):
+        assert (
+            pytest.approx(7.491416242830744, rel=1e-6)
+            == bert.model.get_val("Cluster0.classifier.H2_max", units="kg/h")[0]
+        )
