@@ -149,13 +149,9 @@ def test_example_00_no_controller(subtests):
 
         assert (
             pytest.approx(cell_h2 * scale_fac, rel=1e-6)
-            == bert.model.get_val("Cluster0.Cluster_H2", units="kg/h").sum()
+            == bert.model.get_val("Cluster0.simulation.Cluster_H2", units="kg/h").sum()
         )
     with subtests.test("Cluster H2 Production (value)"):
-        cell_h2 = bert.model.get_val(
-            "Cluster0.simulation.cell_real.H2_cell_out", units="kg/h"
-        ).sum()
-
         assert (
             pytest.approx(81.49985544233095, rel=1e-6)
             == bert.model.get_val("Cluster0.simulation.Cluster_H2", units="kg/h").sum()
