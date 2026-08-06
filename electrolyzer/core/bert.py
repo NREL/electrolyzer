@@ -155,13 +155,6 @@ class BERT:
         cluster_comp = self.create_cluster_group()
 
         # NOTE: cell design params should only be promoted if all the clusters are identical
-        # if self.identical_cells:
-        #     cluster_group = self.plant.add_subsystem(
-        #         f"Cluster{cluster_i}", om.Group(), promotes=cell_design_params
-        #     )
-        # else:
-        #     cluster_group = self.plant.add_subsystem(f"Cluster{cluster_i}", om.Group())
-        # clusters.append(cluster_group)
         if self.identical_cells:
             cluster_group = self.plant.add_subsystem(
                 f"Cluster{cluster_i}", cluster_comp, promotes=cell_design_params
@@ -169,38 +162,6 @@ class BERT:
         else:
             cluster_group = self.plant.add_subsystem(f"Cluster{cluster_i}", cluster_comp)
         clusters.append(cluster_group)
-
-        # # Step 2: Create controller cluster connector components
-        # pre_translator = self.create_controller_cluster_connector(cell_design_params)
-        # cluster_classifier = self.create_cluster_classification_component()
-        # # Translator has scale down + power to current conversion
-        # translator = self.create_controller_translator()
-        # # Step 3: Create the simulate block of a cluster
-        # simulator = self.create_cluster_simulation_block(cell_design_params)
-
-        # promotion_vars = [*cell_design_params, "I_min", "I_max"]
-        # cluster_group.add_subsystem("converter", pre_translator, promotes=promotion_vars)
-        # cluster_group.add_subsystem(
-        #     "classifier", cluster_classifier, promotes=["I_min", "I_max", "n_cells", "n_stacks"]
-        # )
-        # cluster_group.add_subsystem("translator", translator, promotes=["n_stacks", "n_cells"])
-        # sim_prom_vars = [*promotion_vars, "n_stacks", "n_cells"]
-        # cluster_group.add_subsystem("simulation", simulator, promotes=sim_prom_vars)
-
-        # # simulation.dynamics gets I_min and I_max from the converter outputs
-        # # Connect the converter bounds to the
-        # cluster_group.connect(
-        #     "converter.p2i.curve_coeffs", "translator.command_to_current.curve_coeffs"
-        # )
-        # cluster_group.connect("translator.command_to_current.I_command", "simulation.dynamics.I_in")
-
-        # # connect converter group stuff to classification block
-        # cluster_group.connect("converter.I_ref_points", "classifier.I_ref_points")
-        # cluster_group.connect("converter.ref_cell.J_out", "classifier.cell_classifier.J_in")
-        # for var in ["P", "H2", "O2", "V"]:
-        #     cluster_group.connect(
-        #         f"converter.ref_cell.{var}_cell_out", f"classifier.cell_classifier.{var}_in"
-        #     )
 
         # Connect controller to cluster
         self.plant.connect(
