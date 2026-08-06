@@ -25,7 +25,7 @@ def test_example_00_no_controller(subtests):
 
     p_cell_ref = bert.model.get_val("Cluster0.converter.ref_cell.P_cell_out", units="W")
     p_system_ref = p_cell_ref * scale_fac
-    bert.model.set_val("controller.P_command", p_system_ref, units="W")
+    bert.model.set_val("controller.P_command_0", p_system_ref, units="W")
     bert.run()
     i_estimated = bert.model.get_val("Cluster0.translator.command_to_current.I_command", units="A")
     i_actual = bert.model.get_val("Cluster0.converter.I_ref_points", units="A")
