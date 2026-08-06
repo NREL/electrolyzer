@@ -36,7 +36,7 @@ class GenericSeriesConverter(om.ExplicitComponent):
 
 
 class SplitAcrossSerialComponents(GenericSeriesConverter):
-    """Scale power down"""
+    """Split values across components connected in series"""
 
     def compute(self, inputs, outputs):
         for o_name in outputs.keys():
@@ -49,7 +49,7 @@ class SplitAcrossSerialComponents(GenericSeriesConverter):
 
 
 class CombineSerialComponents(GenericSeriesConverter):
-    """Scale power down"""
+    """Add values across components connected in series"""
 
     def setup(self):
         super().setup()

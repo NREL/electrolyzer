@@ -141,3 +141,49 @@ def test_example_00_no_controller(subtests):
             pytest.approx(7.491416242830744, rel=1e-6)
             == bert.model.get_val("Cluster0.classifier.H2_max", units="kg/h")[0]
         )
+
+    with subtests.test("Cluster H2 Production"):
+        cell_h2 = bert.model.get_val(
+            "Cluster0.simulation.cell_real.H2_cell_out", units="kg/h"
+        ).sum()
+
+        assert (
+            pytest.approx(cell_h2 * scale_fac, rel=1e-6)
+            == bert.model.get_val("Cluster0.simulation.Cluster_H2", units="kg/h").sum()
+        )
+    with subtests.test("Cluster H2 Production (value)"):
+        assert (
+            pytest.approx(81.49985544233095, rel=1e-6)
+            == bert.model.get_val("Cluster0.simulation.Cluster_H2", units="kg/h").sum()
+        )
+
+    with subtests.test("Cluster Voltage"):
+        cell_voltage = bert.model.get_val(
+            "Cluster0.simulation.degradation_combiner.V_cell_total", units="V"
+        )[-1]
+
+        assert (
+            pytest.approx(cell_voltage * scale_fac, rel=1e-6)
+            == bert.model.get_val("Cluster0.simulation.Cluster_V", units="V")[-1]
+        )
+    with subtests.test("Cluster Voltage (value)"):
+        cell_voltage = bert.model.get_val(
+            "Cluster0.simulation.degradation_combiner.V_cell_total", units="V"
+        )[-1]
+
+        assert (
+            pytest.approx(227.1918107704954, rel=1e-6)
+            == bert.model.get_val("Cluster0.simulation.Cluster_V", units="V")[-1]
+        )
+
+    with subtests.test("Degradation power"):
+        V_cell_bol = bert.model.get_val("Cluster0.simulation.cell_nominal.V_cell_out", units="V")
+        V_cell_deg = bert.model.get_val(
+            "Cluster0.simulation.degradation.V_cell_degraded", units="V"
+        )
+        I_deg = bert.model.get_val("Cluster0.simulation.degradation.I_actual", units="A")
+        I_bol = bert.model.get_val("Cluster0.simulation.degradation.I_in", units="A")
+        P_cell_bol = I_bol * V_cell_bol
+        P_cell_deg = I_deg * (V_cell_deg + V_cell_bol)
+        assert np.allclose(P_cell_bol, P_cell_deg)
+        assert np.allclose(P_cell_bol * scale_fac, P_cell_deg * scale_fac)
