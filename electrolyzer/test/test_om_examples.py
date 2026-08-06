@@ -6,6 +6,7 @@ import pytest
 
 from electrolyzer import BERT_EXAMPLE_DIR
 from electrolyzer.core.bert import BERT
+from electrolyzer.core.file_utils import load_yaml
 
 
 def test_example_00_no_controller(subtests):
@@ -13,7 +14,9 @@ def test_example_00_no_controller(subtests):
     os.chdir(example_fpath)
 
     config_fpath = example_fpath / "bert_config.yaml"
-    bert = BERT(config_fpath, make_n2=False)
+    config = load_yaml(config_fpath)
+    config["simulation"]["n_timesteps"] = 20
+    bert = BERT(config, make_n2=False)
     bert.run()
 
     scale_fac = bert.model.get_val("Cluster0.n_stacks", units="unitless") * bert.model.get_val(
