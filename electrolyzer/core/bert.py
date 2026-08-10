@@ -38,6 +38,7 @@ class BERT:
 
         self.create_controller()
         self.create_components()
+
         self.connect_system()
 
         self.create_recorder(self.prob)
@@ -143,6 +144,8 @@ class BERT:
 
     def create_performance_aggregator(self):
         perf_mod = SystemPerformance(n_clusters=self.n_clusters)
+        self.plant.add_subsystem("system_timeseries", perf_mod)
+
         return perf_mod
 
     def create_components(self):
@@ -153,18 +156,18 @@ class BERT:
 
         # Step 1: Create cluster groups
         clusters = []
-        cluster_i = 0
+        # cluster_i = 0
+        for cluster_i in range(self.n_clusters):
+            cluster_comp = self.create_cluster_group()
 
-        cluster_comp = self.create_cluster_group()
-
-        # NOTE: cell design params should only be promoted if all the clusters are identical
-        if self.identical_cells:
-            cluster_group = self.plant.add_subsystem(
-                f"Cluster{cluster_i}", cluster_comp, promotes=cell_design_params
-            )
-        else:
-            cluster_group = self.plant.add_subsystem(f"Cluster{cluster_i}", cluster_comp)
-        clusters.append(cluster_group)
+            # NOTE: cell design params should only be promoted if all the clusters are identical
+            if self.identical_cells:
+                cluster_group = self.plant.add_subsystem(
+                    f"Cluster{cluster_i}", cluster_comp, promotes=cell_design_params
+                )
+            else:
+                cluster_group = self.plant.add_subsystem(f"Cluster{cluster_i}", cluster_comp)
+            clusters.append(cluster_group)
 
         # Connect controller to cluster
         # self.plant.connect(
@@ -181,10 +184,12 @@ class BERT:
         # Connect controller to cluster
 
         for cluster_i in range(0, self.n_clusters, 1):
+            # Connect controller to cluster
             self.plant.connect(
                 f"controller.{self.control_passed_var}_command_{cluster_i}",
                 f"Cluster{cluster_i}.translator.cluster_to_stack.{self.control_passed_var}_in",
             )
+        # connect the clusters to a system performance component
 
     def create_cluster_simulation_block(self, cell_design_params):
         simulation = om.Group()
@@ -448,7 +453,7 @@ class BERT:
                 raise NotImplementedError(msg)
             return ivc_comp
         controller_name = self.system_config["control_model"]
-        controller_model = self.supported_models(controller_name)
+        controller_model = self.supported_models.get(controller_name)
         controller = controller_model(
             plant_config=self.plant_config,
             tech_config=self.system_config,

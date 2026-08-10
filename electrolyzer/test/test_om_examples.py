@@ -190,3 +190,48 @@ def test_example_00_no_controller(subtests):
         P_cell_deg = I_deg * (V_cell_deg + V_cell_bol)
         assert np.allclose(P_cell_bol, P_cell_deg)
         assert np.allclose(P_cell_bol * scale_fac, P_cell_deg * scale_fac)
+
+
+def test_example_00_with_controller(subtests):
+    example_fpath = BERT_EXAMPLE_DIR / "example_00_refactor"
+    os.chdir(example_fpath)
+
+    n_clusters = 2
+
+    config_fpath = example_fpath / "bert_config.yaml"
+    config = load_yaml(config_fpath)
+    config["simulation"]["n_timesteps"] = 20
+    config["system"]["n_clusters"] = n_clusters
+    config["system"]["control_model"] = "OLBasicSplit"
+    bert = BERT(config, make_n2=False)
+    bert.run()
+
+    scale_fac = bert.model.get_val("Cluster0.n_stacks", units="unitless") * bert.model.get_val(
+        "Cluster0.n_cells", units="unitless"
+    )
+
+    p_cell_ref = bert.model.get_val("Cluster0.converter.ref_cell.P_cell_out", units="W")
+    p_system_ref = p_cell_ref * scale_fac * n_clusters
+    bert.model.set_val("controller.P_command", p_system_ref, units="W")
+    bert.run()
+
+    with subtests.test("Initial reference rated power"):
+        assert (
+            pytest.approx(4467.1560, rel=1e-6)
+            == bert.model.get_val("Cluster0.converter.ref_cell.P_cell_out", units="W")[-1]
+        )
+
+    coeff_initial = copy.deepcopy(
+        bert.model.get_val("Cluster0.translator.command_to_current.curve_coeffs", units="A/W")
+    )
+
+    with subtests.test("Initial curve coefficients"):
+        expected_initial_coeff = np.array(
+            [7.08472908e-10, -1.70727901e-05, 4.78002528e-01, 2.34225327e00, -1.42414827e01]
+        )
+        assert pytest.approx(expected_initial_coeff, rel=1e-6, abs=1e-8) == coeff_initial
+    with subtests.test("Initial reference rated voltage"):
+        assert (
+            pytest.approx(2.233578003273652, rel=1e-6)
+            == bert.model.get_val("Cluster0.converter.ref_cell.V_cell_out", units="V")[-1]
+        )
