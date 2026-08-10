@@ -23,18 +23,22 @@ class State(IntEnum):
 
 
 class BERT:
-    def __init__(self, config_input, make_n2=True):
+    def __init__(self, config_input, make_n2=True, as_problem=True):
         self.create_n2 = make_n2
         self.supported_models = supported_models.copy()
 
         # read in config file; it's a yaml dict that looks like this:
         self.load_config(config_input)
-        self.prob = om.Problem(reports=False)
-        self.model = self.prob.model
-        plant_group = om.Group()
 
-        # Create the plant model group and add components
-        self.plant = self.model.add_subsystem("plant", plant_group, promotes=["*"])
+        if as_problem:
+            self.prob = om.Problem(reports=False)
+            self.model = self.prob.model
+            plant_group = om.Group()
+
+            # Create the plant model group and add components
+            self.plant = self.model.add_subsystem("plant", plant_group, promotes=["*"])
+        else:
+            self.plant = om.Group()
 
         self.create_controller()
         self.create_components()
@@ -42,7 +46,8 @@ class BERT:
 
         self.connect_system()
 
-        self.create_recorder(self.prob)
+        if as_problem:
+            self.create_recorder(self.prob)
 
         self.state = State.INITIALIZED
 
