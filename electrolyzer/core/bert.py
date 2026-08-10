@@ -38,6 +38,7 @@ class BERT:
 
         self.create_controller()
         self.create_components()
+        self.create_performance_aggregator()
 
         self.connect_system()
 
@@ -143,10 +144,11 @@ class BERT:
         self.plant.add_subsystem("controller", controller)
 
     def create_performance_aggregator(self):
-        perf_mod = SystemPerformance(n_clusters=self.n_clusters)
-        self.plant.add_subsystem("system_timeseries", perf_mod)
+        ts_perf_mod = SystemPerformance(n_clusters=self.n_clusters)
+        self.plant.add_subsystem("system_timeseries", ts_perf_mod)
 
-        return perf_mod
+        perf_mod = SystemPerformance(n_clusters=self.n_clusters)
+        self.plant.add_subsystem("system_ub", perf_mod)
 
     def create_components(self):
         #
@@ -189,7 +191,21 @@ class BERT:
                 f"controller.{self.control_passed_var}_command_{cluster_i}",
                 f"Cluster{cluster_i}.translator.cluster_to_stack.{self.control_passed_var}_in",
             )
-        # connect the clusters to a system performance component
+
+        for cluster_i in range(0, self.n_clusters, 1):
+            # connect the clusters to a system performance component
+            # connect the classifier component and the simulation component
+            for var in ["P", "H2", "O2", "V"]:
+                self.plant.connect(
+                    # part of scale_stack_to_cluster
+                    f"Cluster{cluster_i}.simulation.Cluster_{var}",
+                    f"system_timeseries.{var}_in_{cluster_i}",
+                )
+                self.plant.connect(
+                    # part of classifier.stack_to_cluster_ub
+                    f"Cluster{cluster_i}.classifier.{var}_max",
+                    f"system_ub.{var}_in_{cluster_i}",
+                )
 
     def create_cluster_simulation_block(self, cell_design_params):
         simulation = om.Group()

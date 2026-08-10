@@ -235,3 +235,25 @@ def test_example_00_with_controller(subtests):
             pytest.approx(2.233578003273652, rel=1e-6)
             == bert.model.get_val("Cluster0.converter.ref_cell.V_cell_out", units="V")[-1]
         )
+    # TODO: also test Cluster1
+
+    with subtests.test("Cluster H2 production"):
+        assert (
+            pytest.approx(82.38478954465917, rel=1e-6)
+            == bert.model.get_val("Cluster0.simulation.Cluster_H2", units="kg/h").sum()
+        )
+        assert (
+            pytest.approx(82.38478954465917, rel=1e-6)
+            == bert.model.get_val("Cluster1.simulation.Cluster_H2", units="kg/h").sum()
+        )
+
+    with subtests.test("System H2 Production"):
+        assert (
+            pytest.approx(164.76957908931834, rel=1e-6)
+            == bert.model.get_val("system_timeseries.H2_out", units="kg/h").sum()
+        )
+
+    with subtests.test("System Rated H2 Production"):
+        assert pytest.approx(14.982832485661488, rel=1e-6) == bert.model.get_val(
+            "system_ub.H2_out", units="kg/h"
+        )
