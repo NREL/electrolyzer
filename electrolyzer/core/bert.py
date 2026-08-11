@@ -160,7 +160,7 @@ class BERT:
 
         # Get the design parameters of the cell
         cell_design_params = get_cell_params_for_model(self.config["cell"].get("model", None))
-
+        stack_design_params = [*cell_design_params, "n_stacks", "n_cells"]
         # Step 1: Create cluster groups
         clusters = []
         # cluster_i = 0
@@ -170,7 +170,7 @@ class BERT:
             # NOTE: cell design params should only be promoted if all the clusters are identical
             if self.identical_cells:
                 cluster_group = self.plant.add_subsystem(
-                    f"Cluster{cluster_i}", cluster_comp, promotes=cell_design_params
+                    f"Cluster{cluster_i}", cluster_comp, promotes=stack_design_params
                 )
             else:
                 cluster_group = self.plant.add_subsystem(f"Cluster{cluster_i}", cluster_comp)

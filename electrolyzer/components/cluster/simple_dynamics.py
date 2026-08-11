@@ -40,6 +40,5 @@ class SimpleDynamics(DynamicsBase):
         # But a separate output should be used to reflect show partial losses (warm-up delay)
 
         i_out = np.clip(inputs["I_in"], a_min=inputs["I_min"], a_max=inputs["I_max"])
-        # TODO: add start-up delay
-        outputs["I_out"] = i_out
+        outputs["I_out"] = i_out * on_off_status
         outputs["on_off_status"] = on_off_status
