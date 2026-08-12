@@ -6,6 +6,7 @@ import pytest
 
 from electrolyzer import BERT_EXAMPLE_DIR
 from electrolyzer.core.bert import BERT
+from electrolyzer.core.file_utils import load_yaml
 
 
 def test_example_00_no_controller(subtests):
@@ -13,16 +14,18 @@ def test_example_00_no_controller(subtests):
     os.chdir(example_fpath)
 
     config_fpath = example_fpath / "bert_config.yaml"
-    bert = BERT(config_fpath, make_n2=False)
+    config = load_yaml(config_fpath)
+    config["simulation"]["n_timesteps"] = 20
+    bert = BERT(config, make_n2=False)
     bert.run()
 
-    scale_fac = bert.model.get_val("Cluster0.n_stacks", units="unitless") * bert.model.get_val(
-        "Cluster0.n_cells", units="unitless"
+    scale_fac = bert.model.get_val("n_stacks", units="unitless") * bert.model.get_val(
+        "n_cells", units="unitless"
     )
 
     p_cell_ref = bert.model.get_val("Cluster0.converter.ref_cell.P_cell_out", units="W")
     p_system_ref = p_cell_ref * scale_fac
-    bert.model.set_val("controller.P_command", p_system_ref, units="W")
+    bert.model.set_val("controller.P_command_0", p_system_ref, units="W")
     bert.run()
     i_estimated = bert.model.get_val("Cluster0.translator.command_to_current.I_command", units="A")
     i_actual = bert.model.get_val("Cluster0.converter.I_ref_points", units="A")
@@ -30,10 +33,10 @@ def test_example_00_no_controller(subtests):
     i_error = i_estimated - i_actual
 
     with subtests.test("100 cells per stack"):
-        assert pytest.approx(100.0, rel=1e-6) == bert.model.get_val("Cluster0.n_cells")[0]
+        assert pytest.approx(100.0, rel=1e-6) == bert.model.get_val("n_cells")[0]
 
     with subtests.test("1 stack per cluster"):
-        assert pytest.approx(1.0, rel=1e-6) == bert.model.get_val("Cluster0.n_stacks")[0]
+        assert pytest.approx(1.0, rel=1e-6) == bert.model.get_val("n_stacks")[0]
 
     with subtests.test("I-V Curve fit error is less than 0.105 A"):
         assert np.all(np.abs(i_error) < 0.105)
@@ -117,14 +120,14 @@ def test_example_00_no_controller(subtests):
         )
         assert (
             pytest.approx(
-                cell_rated_power * bert.model.get_val("Cluster0.n_cells", units="unitless"),
+                cell_rated_power * bert.model.get_val("n_cells", units="unitless"),
                 rel=1e-6,
             )
             == stack_rated_power
         )
         assert pytest.approx(
             bert.model.get_val("Cluster0.classifier.P_max", units="kW"), rel=1e-6
-        ) == stack_rated_power * bert.model.get_val("Cluster0.n_stacks", units="unitless")
+        ) == stack_rated_power * bert.model.get_val("n_stacks", units="unitless")
 
     with subtests.test("Rated conversion efficiency"):
         assert pytest.approx(60.84498639, rel=1e-6) == bert.model.get_val(
@@ -187,3 +190,86 @@ def test_example_00_no_controller(subtests):
         P_cell_deg = I_deg * (V_cell_deg + V_cell_bol)
         assert np.allclose(P_cell_bol, P_cell_deg)
         assert np.allclose(P_cell_bol * scale_fac, P_cell_deg * scale_fac)
+
+
+def test_example_00_with_controller(subtests):
+    example_fpath = BERT_EXAMPLE_DIR / "example_00_refactor"
+    os.chdir(example_fpath)
+
+    n_clusters = 2
+
+    config_fpath = example_fpath / "bert_config.yaml"
+    config = load_yaml(config_fpath)
+    config["simulation"]["n_timesteps"] = 20
+    config["system"]["n_clusters"] = n_clusters
+    config["system"]["control_model"] = "OLBasicSplit"
+    bert = BERT(config, make_n2=False)
+    bert.run()
+
+    scale_fac = bert.model.get_val("n_stacks", units="unitless") * bert.model.get_val(
+        "n_cells", units="unitless"
+    )
+
+    p_cell_ref = bert.model.get_val("Cluster0.converter.ref_cell.P_cell_out", units="W")
+    p_system_ref = p_cell_ref * scale_fac * n_clusters
+    bert.model.set_val("controller.P_command", p_system_ref, units="W")
+    bert.run()
+
+    with subtests.test("Initial reference rated power"):
+        assert (
+            pytest.approx(4467.1560, rel=1e-6)
+            == bert.model.get_val("Cluster0.converter.ref_cell.P_cell_out", units="W")[-1]
+        )
+
+    coeff_initial = copy.deepcopy(
+        bert.model.get_val("Cluster0.translator.command_to_current.curve_coeffs", units="A/W")
+    )
+
+    with subtests.test("Initial curve coefficients"):
+        expected_initial_coeff = np.array(
+            [7.08472908e-10, -1.70727901e-05, 4.78002528e-01, 2.34225327e00, -1.42414827e01]
+        )
+        assert pytest.approx(expected_initial_coeff, rel=1e-6, abs=1e-8) == coeff_initial
+    with subtests.test("Initial reference rated voltage"):
+        assert (
+            pytest.approx(2.233578003273652, rel=1e-6)
+            == bert.model.get_val("Cluster0.converter.ref_cell.V_cell_out", units="V")[-1]
+        )
+    # TODO: also test Cluster1
+
+    with subtests.test("Cluster0 on/off status"):
+        assert (
+            19.0
+            == bert.model.get_val(
+                "Cluster0.simulation.dynamics.on_off_status", units="unitless"
+            ).sum()
+        )
+
+    with subtests.test("Cluster1 on/off status"):
+        assert (
+            19.0
+            == bert.model.get_val(
+                "Cluster1.simulation.dynamics.on_off_status", units="unitless"
+            ).sum()
+        )
+
+    with subtests.test("Cluster H2 production"):
+        assert (
+            pytest.approx(81.64025077453496, rel=1e-6)
+            == bert.model.get_val("Cluster0.simulation.Cluster_H2", units="kg/h").sum()
+        )
+        assert (
+            pytest.approx(81.64025077453496, rel=1e-6)
+            == bert.model.get_val("Cluster1.simulation.Cluster_H2", units="kg/h").sum()
+        )
+
+    with subtests.test("System H2 Production"):
+        assert (
+            pytest.approx(163.28050154906992, rel=1e-6)
+            == bert.model.get_val("system_timeseries.H2_out", units="kg/h").sum()
+        )
+
+    with subtests.test("System Rated H2 Production"):
+        assert pytest.approx(14.982832485661488, rel=1e-6) == bert.model.get_val(
+            "system_ub.H2_out", units="kg/h"
+        )

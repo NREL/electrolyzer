@@ -14,10 +14,10 @@ class OLBasicSplit(om.ExplicitComponent):
         self.options.declare("plant_config", types=dict, default={})
         self.options.declare("tech_config", types=dict, default={})
         self.options.declare("n_clusters", types=int)
-        self.options.declare("control_variable", types=str, values=["power", "hydrogen"])
+        self.options.declare("control_variable", values=["power", "hydrogen"])
 
     def setup(self):
-        # self.n_timesteps = self.options["plant_config"]["simulation"]["n_timesteps"]
+        self.n_timesteps = self.options["plant_config"]["simulation"]["n_timesteps"]
         # self.dt = self.options["plant_config"]["simulation"]["dt"]
         # self.config = OLControlConfig.from_dict(self.options["tech_config"]["control_parameters"])
         self.n_clusters = self.options["n_clusters"]
@@ -25,12 +25,14 @@ class OLBasicSplit(om.ExplicitComponent):
 
         if self.control_cmd == "power":
             # output_cmd_fmt = "power_cmd_{ci}"
-            self.add_input("P_command", val=0.0, shape_by_conn=True, units="kW")
+            # self.add_input("P_command", val=0.0, shape_by_conn=True, units="kW")
+            self.add_input("P_command", val=0.0, shape=self.n_timesteps, units="kW")
             for ci in range(self.n_clusters):
                 self.add_output(f"P_command_{ci}", val=0.0, copy_shape="P_command", units="kW")
         else:
             # output_cmd_fmt = "hydrogen_cmd_{ci}"
-            self.add_input("H2_command", val=0.0, shape_by_conn=True, units="kg/h")
+            # self.add_input("H2_command", val=0.0, shape_by_conn=True, units="kg/h")
+            self.add_input("H2_command", val=0.0, shape=self.n_timesteps, units="kg/h")
             for ci in range(self.n_clusters):
                 self.add_output(f"H2_command_{ci}", val=0.0, copy_shape="H2_command", units="kg/h")
 

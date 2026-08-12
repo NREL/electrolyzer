@@ -12,9 +12,7 @@ from electrolyzer.connectors.series_scalar import (
 from electrolyzer.connectors.degradation_combiner import CombineDegradation
 from electrolyzer.components.cell.cell_design_params import get_cell_params_for_model
 from electrolyzer.components.classifiers.cell_classifier import CellClassification
-
-
-# from electrolyzer.components.classifiers.system_performance import SystemPerformance
+from electrolyzer.components.classifiers.system_performance import SystemPerformance
 
 
 class State(IntEnum):
@@ -25,23 +23,31 @@ class State(IntEnum):
 
 
 class BERT:
-    def __init__(self, config_input, make_n2=True):
+    def __init__(self, config_input, make_n2=True, as_problem=True):
         self.create_n2 = make_n2
         self.supported_models = supported_models.copy()
 
         # read in config file; it's a yaml dict that looks like this:
         self.load_config(config_input)
-        self.prob = om.Problem(reports=False)
-        self.model = self.prob.model
-        plant_group = om.Group()
 
-        # Create the plant model group and add components
-        self.plant = self.model.add_subsystem("plant", plant_group, promotes=["*"])
+        if as_problem:
+            self.prob = om.Problem(reports=False)
+            self.model = self.prob.model
+            plant_group = om.Group()
+
+            # Create the plant model group and add components
+            self.plant = self.model.add_subsystem("plant", plant_group, promotes=["*"])
+        else:
+            self.plant = om.Group()
 
         self.create_controller()
         self.create_components()
+        self.create_performance_aggregator()
 
-        self.create_recorder(self.prob)
+        self.connect_system()
+
+        if as_problem:
+            self.create_recorder(self.prob)
 
         self.state = State.INITIALIZED
 
@@ -98,31 +104,11 @@ class BERT:
     def post_process(self):
         pass
 
-    def create_cluster_components(self):
-        pass
-
-    def create_controller(self):
-        controller = self.create_controller_component()
-        self.plant.add_subsystem("controller", controller)
-
-    def create_components(self):
-        #
-
+    def create_cluster_group(self):
         # Get the design parameters of the cell
         cell_design_params = get_cell_params_for_model(self.config["cell"].get("model", None))
 
-        # Step 1: Create cluster groups
-        clusters = []
-        cluster_i = 0
-
-        # NOTE: cell design params should only be promoted if all the clusters are identical
-        if self.identical_cells:
-            cluster_group = self.plant.add_subsystem(
-                f"Cluster{cluster_i}", om.Group(), promotes=cell_design_params
-            )
-        else:
-            cluster_group = self.plant.add_subsystem(f"Cluster{cluster_i}", om.Group())
-        clusters.append(cluster_group)
+        cluster_group = om.Group()
 
         # Step 2: Create controller cluster connector components
         pre_translator = self.create_controller_cluster_connector(cell_design_params)
@@ -156,15 +142,75 @@ class BERT:
                 f"converter.ref_cell.{var}_cell_out", f"classifier.cell_classifier.{var}_in"
             )
 
+        return cluster_group
+
+    def create_controller(self):
+        controller = self.create_controller_component()
+        self.plant.add_subsystem("controller", controller)
+
+    def create_performance_aggregator(self):
+        ts_perf_mod = SystemPerformance(n_clusters=self.n_clusters)
+        self.plant.add_subsystem("system_timeseries", ts_perf_mod)
+
+        perf_mod = SystemPerformance(n_clusters=self.n_clusters)
+        self.plant.add_subsystem("system_ub", perf_mod)
+
+    def create_components(self):
+        #
+
+        # Get the design parameters of the cell
+        cell_design_params = get_cell_params_for_model(self.config["cell"].get("model", None))
+        stack_design_params = [*cell_design_params, "n_stacks", "n_cells"]
+        # Step 1: Create cluster groups
+        clusters = []
+        # cluster_i = 0
+        for cluster_i in range(self.n_clusters):
+            cluster_comp = self.create_cluster_group()
+
+            # NOTE: cell design params should only be promoted if all the clusters are identical
+            if self.identical_cells:
+                cluster_group = self.plant.add_subsystem(
+                    f"Cluster{cluster_i}", cluster_comp, promotes=stack_design_params
+                )
+            else:
+                cluster_group = self.plant.add_subsystem(f"Cluster{cluster_i}", cluster_comp)
+            clusters.append(cluster_group)
+
         # Connect controller to cluster
-        self.plant.connect(
-            "controller.P_command", f"Cluster{cluster_i}.translator.cluster_to_stack.P_in"
-        )
+        # self.plant.connect(
+        #     f"controller.{self.control_passed_var}_command_{cluster_i}",
+        #     f"Cluster{cluster_i}.translator.cluster_to_stack.{self.control_passed_var}_in"
+        # )
 
         # cluster_group.connect("converter.I_ref_points", "classifier."
         # cluster_group.connect("converter.ref_cell.")
 
         self.clusters = clusters
+
+    def connect_system(self):
+        # Connect controller to cluster
+
+        for cluster_i in range(0, self.n_clusters, 1):
+            # Connect controller to cluster
+            self.plant.connect(
+                f"controller.{self.control_passed_var}_command_{cluster_i}",
+                f"Cluster{cluster_i}.translator.cluster_to_stack.{self.control_passed_var}_in",
+            )
+
+        for cluster_i in range(0, self.n_clusters, 1):
+            # connect the clusters to a system performance component
+            # connect the classifier component and the simulation component
+            for var in ["P", "H2", "O2", "V"]:
+                self.plant.connect(
+                    # part of scale_stack_to_cluster
+                    f"Cluster{cluster_i}.simulation.Cluster_{var}",
+                    f"system_timeseries.{var}_in_{cluster_i}",
+                )
+                self.plant.connect(
+                    # part of classifier.stack_to_cluster_ub
+                    f"Cluster{cluster_i}.classifier.{var}_max",
+                    f"system_ub.{var}_in_{cluster_i}",
+                )
 
     def create_cluster_simulation_block(self, cell_design_params):
         simulation = om.Group()
@@ -416,11 +462,19 @@ class BERT:
         n_timesteps = int(self.plant_config["simulation"]["n_timesteps"])
         if "control_model" not in self.system_config:
             ivc_comp = om.IndepVarComp(
-                name=f"{self.control_passed_var}_command", val=np.full(n_timesteps, 40.0), units="W"
+                name=f"{self.control_passed_var}_command_0",
+                val=np.full(n_timesteps, 40.0),
+                units="W",
             )
+            if self.n_clusters > 1:
+                msg = (
+                    "Cannot run multiple clusters without a control model. "
+                    "Please specify a control model"
+                )
+                raise NotImplementedError(msg)
             return ivc_comp
         controller_name = self.system_config["control_model"]
-        controller_model = self.supported_models(controller_name)
+        controller_model = self.supported_models.get(controller_name)
         controller = controller_model(
             plant_config=self.plant_config,
             tech_config=self.system_config,
